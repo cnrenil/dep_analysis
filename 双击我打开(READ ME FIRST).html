@@ -6,13 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus Mods 依赖分析器 - README</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chosen Palette: Calm Harmony (Stone/Slate neutrals with soft blue accents) -->
-    <!-- Application Structure Plan: A single-page app with a top navigation bar and a language toggle. Content is divided into logical sections (Overview, Features, Installation, Usage, Hotkeys) that users can jump to. This structure is more engaging and navigable than a linear markdown file. The language toggle provides immediate utility for the bilingual source content. -->
-    <!-- Visualization & Content Choices: Report Info: Features list -> Goal: Inform/Organize -> Viz: Interactive cards (HTML/CSS grid) -> Interaction: Click to show/hide details -> Justification: Breaks down complex features into digestible, user-explorable chunks. Report Info: Installation/Usage steps -> Goal: Organize -> Viz: Styled step-by-step list -> Interaction: Copy-to-clipboard for paths -> Justification: Improves usability over plain text. Report Info: Hotkeys -> Goal: Inform -> Viz: Styled <kbd> elements -> Justification: Clear visual representation for key presses. Library/Method: Vanilla JS for all interactions, Tailwind for styling. -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
             background-color: #f8fafc;
             /* slate-50 */
             color: #1e293b;
@@ -88,7 +84,11 @@
                 data-translate-key="overview.title">简介</h2>
             <p class="mt-4 max-w-2xl mx-auto text-lg text-slate-600" data-translate-key="overview.description">这是一个为 Mod
                 Organizer 2 (MO2) 开发的功能强大的插件，旨在帮助用户管理复杂的模组(Mod)依赖关系。它通过直接从 Nexus Mods
-                网站抓取数据，为您提供最准确的依赖信息，并基于这些信息提供排序建议、问题诊断等功能。本插件已捆绑所有必需的 Python 库，您无需手动安装它们。<strong>注意：在使用自动排序功能前必须进行备份！！！！！！！！</strong></p>
+                网站抓取数据，为您提供最准确的依赖信息，并基于这些信息提供排序建议、问题诊断等功能。本插件已捆绑所有必需的 Python 库，您无需手动安装它们。</p>
+            <div class="mt-6 max-w-2xl mx-auto p-4 bg-red-100 border-l-4 border-red-500 text-red-700">
+                <p class="font-bold" data-translate-key="overview.warning_title">重要提示</p>
+                <p data-translate-key="overview.warning_text">在使用“完整分析”中的右键“修正选中模组的顺序”功能前，请务必备份您的 MO2 profiles 文件夹！该功能会直接修改您的模组加载顺序。</p>
+            </div>
         </section>
 
         <section id="features" class="py-12 sm:py-16">
@@ -113,7 +113,7 @@
                         <h3 class="text-xl font-semibold" data-translate-key="features.card2.title">完整加载顺序分析</h3>
                     </div>
                     <p class="text-slate-600" data-translate-key="features.card2.description">扫描您当前的整个模组列表，与 Nexus Mods
-                        上的依赖关系进行比对，生成一份详细的报告，包括加载顺序问题、缺失的依赖和建议的排序，并支持一键修正。</p>
+                        上的依赖关系进行比对，生成一份详细的报告，包括加载顺序问题、缺失的依赖和建议的排序，并支持通过右键菜单一键修正排序问题。</p>
                 </div>
 
                 <div class="feature-card bg-white p-6 rounded-lg shadow-md">
@@ -140,7 +140,16 @@
                         <h3 class="text-xl font-semibold" data-translate-key="features.card5.title">强大的辅助功能</h3>
                     </div>
                     <p class="text-slate-600" data-translate-key="features.card5.description">
-                        所有视图均支持快速搜索和高亮，中键点击可在浏览器打开页面，并提供方便的缓存和规则管理。</p>
+                        所有分析视图均支持快速搜索和高亮；中键点击可在浏览器打开模组页面；提供灵活的缓存和规则管理；所有耗时操作均可通过“停止”按钮安全中断。</p>
+                </div>
+                
+                <div class="feature-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center mb-4">
+                        <span class="text-3xl mr-4">⚙️</span>
+                        <h3 class="text-xl font-semibold" data-translate-key="features.card6.title">高度可配置</h3>
+                    </div>
+                    <p class="text-slate-600" data-translate-key="features.card6.description">
+                        提供详细的设置选项，您可以调整缓存有效期、网络超时、抓取深度等参数，并可通过 `rules.toml` 文件自定义忽略和替换规则，以适应复杂的模组环境。</p>
                 </div>
 
             </div>
@@ -210,19 +219,18 @@
             </div>
             <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item1.title">启动插件</h3>
-                    <p class="text-slate-600" data-translate-key="usage.item1.description">从 MO2 工具栏启动 "Nexus Mods
-                        依赖分析器"。</p>
+                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item1.title">首次使用：登录</h3>
+                    <p class="text-slate-600" data-translate-key="usage.item1.description">启动插件后，进入“设置”标签页，点击“登录 / 刷新 Nexus Cookies”按钮，在弹出的浏览器中登录您的 Nexus Mods 账户。这能有效避免人机验证，并允许插件抓取成人内容模组。</p>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item2.title">依赖树分析</h3>
-                    <p class="text-slate-600" data-translate-key="usage.item2.description">在第一个标签页中，输入一个 Nexus Mod ID
+                    <p class="text-slate-600" data-translate-key="usage.item2.description">在“依赖树分析”标签页中，输入一个 Nexus Mod ID
                         (纯数字)，点击 "分析依赖树" 或 "生成关系图"。</p>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item3.title">完整分析</h3>
+                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item3.title">完整分析与修正</h3>
                     <p class="text-slate-600" data-translate-key="usage.item3.description">在 "完整分析" 标签页中，点击
-                        "生成完整分析报告"。报告生成后，右键点击排序问题项可进行一键修正。</p>
+                        "生成完整分析报告"。报告生成后，在“诊断报告 (排序问题)”下右键点击具体的问题项，选择“修正选中模组的顺序...”即可。<strong>修正前请务必备份！</strong></p>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item4.title">查找翻译</h3>
@@ -277,7 +285,9 @@
                 },
                 overview: {
                     title: "简介",
-                    description: "这是一个为 Mod Organizer 2 (MO2) 开发的功能强大的插件，旨在帮助用户管理复杂的模组(Mod)依赖关系。它通过直接从 Nexus Mods 网站抓取数据，为您提供最准确的依赖信息，并基于这些信息提供排序建议、问题诊断等功能。本插件已捆绑所有必需的 Python 库，您无需手动安装它们。</p><strong style=\"color: red;\">注意：在使用右键辅助排序功能前必须进行备份！！！！！！！！</strong>"
+                    description: "这是一个为 Mod Organizer 2 (MO2) 开发的功能强大的插件，旨在帮助用户管理复杂的模组(Mod)依赖关系。它通过直接从 Nexus Mods 网站抓取数据，为您提供最准确的依赖信息，并基于这些信息提供排序建议、问题诊断等功能。本插件已捆绑所有必需的 Python 库，您无需手动安装它们。",
+                    warning_title: "重要提示",
+                    warning_text: "在使用“完整分析”中的右键“修正选中模组的顺序”功能前，请务必备份您的 MO2 profiles 文件夹！该功能会直接修改您的模组加载顺序。"
                 },
                 features: {
                     title: "主要功能",
@@ -287,7 +297,7 @@
                     },
                     card2: {
                         title: "完整加载顺序分析",
-                        description: "扫描您当前的整个模组列表，与 Nexus Mods 上的依赖关系进行比对，生成一份详细的报告，包括加载顺序问题、缺失的依赖和建议的排序，并支持一键修正。<strong style=\"color: red;\">注意：在使用右键辅助排序功能前必须进行备份！！！！！！！！</strong>"
+                        description: "扫描您当前的整个模组列表，与 Nexus Mods 上的依赖关系进行比对，生成一份详细的报告，包括加载顺序问题、缺失的依赖和建议的排序，并支持通过右键菜单一键修正排序问题。"
                     },
                     card3: {
                         title: "查找缺失的翻译",
@@ -299,7 +309,11 @@
                     },
                     card5: {
                         title: "强大的辅助功能",
-                        description: "所有视图均支持快速搜索和高亮，中键点击可在浏览器打开页面，并提供方便的缓存和规则管理。"
+                        description: "所有分析视图均支持快速搜索和高亮；中键点击可在浏览器打开模组页面；提供灵活的缓存和规则管理；所有耗时操作均可通过“停止”按钮安全中断。"
+                    },
+                    card6: {
+                        title: "高度可配置",
+                        description: "提供详细的设置选项，您可以调整缓存有效期、网络超时、抓取深度等参数，并可通过 `rules.toml` 文件自定义忽略和替换规则，以适应复杂的模组环境。"
                     }
                 },
                 installation: {
@@ -316,7 +330,7 @@
                     },
                     step3: {
                         title: "安装 Graphviz (可选)",
-                        description: "如果您想使用“生成关系图”功能，您需要单独安装 Graphviz。如果用不到此功能，则可以跳过此步。安装时请务必勾选 \"Add Graphviz to the system PATH for all users\" 选项。",
+                        description: "如果您想使用“生成关系图”功能，您需要单独安装 Graphviz。如果用不到此功能，则可以跳过此步。安装时请务必勾选 \"Add Graphviz to the system PATH\" 选项。",
                         link: "前往 Graphviz 官网下载 →"
                     },
                     step4: {
@@ -327,16 +341,16 @@
                 usage: {
                     title: "使用方法",
                     item1: {
-                        title: "启动插件",
-                        description: "从 MO2 工具栏启动 \"Nexus Mods 依赖分析器\"。"
+                        title: "首次使用：登录",
+                        description: "启动插件后，进入“设置”标签页，点击“登录 / 刷新 Nexus Cookies”按钮，在弹出的浏览器中登录您的 Nexus Mods 账户。这能有效避免人机验证，并允许插件抓取成人内容模组。"
                     },
                     item2: {
                         title: "依赖树分析",
-                        description: "在第一个标签页中，输入一个 Nexus Mod ID (纯数字)，点击 \"分析依赖树\" 或 \"生成关系图\"。"
+                        description: "在“依赖树分析”标签页中，输入一个 Nexus Mod ID (纯数字)，点击 \"分析依赖树\" 或 \"生成关系图\"。"
                     },
                     item3: {
-                        title: "完整分析",
-                        description: "在 \"完整分析\" 标签页中，点击 \"生成完整分析报告\"。报告生成后，右键点击排序问题项可进行一键修正。"
+                        title: "完整分析与修正",
+                        description: "在 \"完整分析\" 标签页中，点击 \"生成完整分析报告\"。报告生成后，在“诊断报告 (排序问题)”下右键点击具体的问题项，选择“修正选中模组的顺序...”即可。<strong>修正前请务必备份！</strong>"
                     },
                     item4: {
                         title: "查找翻译",
@@ -372,7 +386,9 @@
                 },
                 overview: {
                     title: "Introduction",
-                    description: "This is a powerful plugin for Mod Organizer 2 (MO2) designed to help users manage complex mod dependencies. It provides the most accurate dependency information by fetching data directly from the Nexus Mods website and offers sorting suggestions and problem diagnosis based on that information. This plugin comes bundled with all necessary Python libraries, so you do not need to install them manually.</p><strong style=\"color: red;\">WARNNING：YOU MUST BACKUP YOUR MOD ORDER BEFORE USE THIS PLUGIN</strong>"
+                    description: "This is a powerful plugin for Mod Organizer 2 (MO2) designed to help users manage complex mod dependencies. It provides the most accurate dependency information by fetching data directly from the Nexus Mods website and offers sorting suggestions and problem diagnosis based on that information. This plugin comes bundled with all necessary Python libraries, so you do not need to install them manually.",
+                    warning_title: "Important",
+                    warning_text: "Before using the \"Correct order for selected mod(s)\" feature in the Full Analysis report, you MUST back up your MO2 profiles folder! This function will directly modify your mod load order."
                 },
                 features: {
                     title: "Main Features",
@@ -382,7 +398,7 @@
                     },
                     card2: {
                         title: "Full Load Order Analysis",
-                        description: "Scans your entire current mod list and compares it with dependencies on Nexus Mods to generate a detailed report, including load order issues, missing dependencies, a suggested order, and one-click correction."
+                        description: "Scans your entire current mod list and compares it with dependencies on Nexus Mods to generate a detailed report, including load order issues, missing dependencies, a suggested order, and one-click correction via the context menu."
                     },
                     card3: {
                         title: "Find Missing Translations",
@@ -394,7 +410,11 @@
                     },
                     card5: {
                         title: "Powerful Auxiliary Functions",
-                        description: "All views support quick search and highlighting, middle-click opens pages in the browser, and it offers convenient cache and rule management."
+                        description: "All views support quick search and highlighting; middle-click opens mod pages in the browser; provides flexible cache and rule management; all time-consuming operations can be safely interrupted with the 'Stop' button."
+                    },
+                    card6: {
+                        title: "Highly Configurable",
+                        description: "Offers detailed settings to adjust cache lifetime, network timeouts, fetch depth, and more. Customize ignore and replacement rules via `rules.toml` to fit complex modding environments."
                     }
                 },
                 installation: {
@@ -411,7 +431,7 @@
                     },
                     step3: {
                         title: "Install Graphviz (Optional)",
-                        description: "If you want to use the \"Generate Dependency Graph\" feature, you need to install Graphviz separately. You can skip this step if you don't need this feature. During installation, make sure to check the option to \"Add Graphviz to the system PATH for all users\".",
+                        description: "If you want to use the \"Generate Dependency Graph\" feature, you need to install Graphviz separately. You can skip this step if you don't need this feature. During installation, make sure to check the option to \"Add Graphviz to the system PATH\".",
                         link: "Download from Graphviz Official Website →"
                     },
                     step4: {
@@ -422,16 +442,16 @@
                 usage: {
                     title: "Usage",
                     item1: {
-                        title: "Launch the Plugin",
-                        description: "Launch \"Nexus Mods Dependency Analyzer\" from the MO2 toolbar."
+                        title: "First Time Use: Login",
+                        description: "After launching the plugin, go to the 'Settings' tab, click the 'Login / Refresh Nexus Cookies' button, and log into your Nexus Mods account in the browser that appears. This helps bypass CAPTCHAs and allows fetching of adult-content mods."
                     },
                     item2: {
                         title: "Dependency Tree Analysis",
-                        description: "In the first tab, enter a Nexus Mod ID (numbers only) and click \"Analyze Dependency Tree\" or \"Generate Dependency Graph\"."
+                        description: "In the 'Dependency Tree Analysis' tab, enter a Nexus Mod ID (numbers only) and click \"Analyze Dependency Tree\" or \"Generate Dependency Graph\"."
                     },
                     item3: {
-                        title: "Full Analysis",
-                        description: "In the \"Full Analysis\" tab, click \"Generate Full Analysis Report\". After the report is generated, right-click on a sort order issue item to apply a one-click fix."
+                        title: "Full Analysis & Correction",
+                        description: "In the \"Full Analysis\" tab, click \"Generate Full Analysis Report\". After the report is generated, right-click on a specific issue under 'Diagnosis Report (Sorting Issues)' and select 'Correct order for selected mod(s)...'. <strong>Remember to back up first!</strong>"
                     },
                     item4: {
                         title: "Find Translations",

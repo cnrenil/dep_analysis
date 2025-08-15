@@ -2,7 +2,7 @@
 
 # =============================================================================
 # Mod Organizer 2 - Nexus Mods 依赖分析器
-# 版本: 7.6.2
+# 版本: 8.0.0
 # 作者: Renil <renil@foxmail.com> & Gemini AI
 #
 # 描述:
@@ -10,10 +10,16 @@
 #   它能够分析单个模组的依赖树，为整个模组列表生成建议的加载顺序，
 #   以及查找已安装模组所缺失的翻译。
 #
-# --- v7.6.2 更新日志 ---
-#   - [修复] 彻底解决了关闭插件窗口时可能发生的线程死锁问题，现在关闭时不再无响应。
-#   - [修复] 解决了点击登录按钮时，因浏览器上下文无法正常关闭而导致的程序卡死问题。
-#   - [健壮性] 优化了浏览器关闭和插件退出的逻辑，使其在各种情况下都更加稳定。
+# --- v8.0.0 更新日志 ---
+#   - [新功能] 新增HTML报告导出功能，可将完整分析结果保存为独立的HTML文件。
+#   - [核心重构] 彻底重写了排序修正逻辑，引入“最小破坏”原则：
+#     - 在修正排序问题时，插件会计算每个可能移动方案对整个加载顺序的影响。
+#     - 优先选择能够解决问题且对其他模组依赖关系破坏最小的移动方案。
+#   - [核心重构] 排序修正逻辑现在能够感知“分隔符”，会优先在模组所在的分隔符内部进行移动，
+#     尽可能地保留用户原有的模组组织结构。
+#   - [改进] 循环依赖的处理更加稳健，新的排序算法能更好地找到一个全局的次优解，
+#     避免在修正后再次出现问题。
+#   - [UI] 诊断报告中现在会显示问题模组所在的分隔符，方便定位。
 # =============================================================================
 
 from __future__ import annotations
@@ -483,7 +489,7 @@ class ModAnalyzer:
 
         except Exception as e:
             self.log(self.__tr("检查登录状态时出错: {error}").format(error=e), "error")
-            self.playwright_manager.close_context()
+            self.playwright_manager.close_main_context()
             self._put_result('browser_ready', False)
     
     def _check_before_analysis(self, analysis_type_for_error: str) -> bool:
@@ -1157,11 +1163,26 @@ class ModAnalyzer:
         self._put_result('progress', (100, 100, self.__tr("排序完成。")))
         return sorted_order, broken_cycle_nodes
 
+    def _get_mod_separators(self) -> Dict[str, str]:
+        """为每个模组查找其所属的分隔符。"""
+        mod_list = self.organizer.modList()
+        all_mods = mod_list.allModsByProfilePriority()
+        separator_map = {}
+        current_separator = self.__tr("无分隔符")
+        for mod_name in all_mods:
+            mod = mod_list.getMod(mod_name)
+            if mod.isSeparator():
+                current_separator = mod_name
+            elif mod.nexusId() > 0:
+                separator_map[mod_name] = current_separator
+        return separator_map
+
     def _analyze_current_load_order(self, full_graph: defaultdict) -> List[Dict]:
-        """分析当前MO2排序，找出明显问题。"""
+        """分析当前MO2排序，找出明显问题，并记录其分隔符。"""
         problems = []
         current_priority_list = self.organizer.modList().allModsByProfilePriority()
         priority_map = {mod_name: i for i, mod_name in enumerate(current_priority_list)}
+        separator_map = self._get_mod_separators()
 
         for dependent_folder, dependent_id in self.folder_to_id.items():
             if dependent_id in self.ignore_requirements_of_ids:
@@ -1189,9 +1210,33 @@ class ModAnalyzer:
                                 "mod_id": dependent_id,
                                 "provider_folder": provider_folder,
                                 "provider_id": provider_id_effective,
-                                "notes": req_info.get('notes', '')
+                                "notes": req_info.get('notes', ''),
+                                "separator": separator_map.get(dependent_folder, self.__tr("未知"))
                             })
         return problems
+
+    def _calculate_disruption_score(self, order: List[str], full_graph: defaultdict, folder_to_id_map: Dict[str, str]) -> int:
+        """计算给定顺序的总“破坏”分数（即有多少依赖关系被违反）。"""
+        score = 0
+        priority_map = {mod_name: i for i, mod_name in enumerate(order)}
+        
+        for dependent_folder, dependent_priority in priority_map.items():
+            dependent_id = folder_to_id_map.get(dependent_folder)
+            if not dependent_id or dependent_id in self.ignore_requirements_of_ids:
+                continue
+                
+            for req_info in full_graph.get(dependent_id, []):
+                provider_id_original = req_info.get('id')
+                if not provider_id_original: continue
+                
+                provider_id_effective = self._get_effective_id(provider_id_original)
+                
+                if provider_id_effective in self.installed_ids:
+                    for provider_folder in self.id_to_folders.get(provider_id_effective, []):
+                        provider_priority = priority_map.get(provider_folder)
+                        if provider_priority is not None and provider_priority > dependent_priority:
+                            score += 1 # 发现一个被破坏的依赖
+        return score
 
     def get_all_cache_data(self) -> List[Dict]:
         if not self.conn: return []
@@ -1217,7 +1262,7 @@ class WorkerThread(threading.Thread):
         self.playwright_manager: Optional[PlaywrightManager] = None
         self.stop_event = threading.Event()
 
-    def request_stop(self):  # <--- 新增：用于从UI线程安全地设置事件的方法
+    def request_stop(self):
         self.stop_event.set()
 
     def run(self):
@@ -1242,8 +1287,6 @@ class WorkerThread(threading.Thread):
                 self.result_queue.put({'type': 'error', 'data': f"工作线程崩溃: {e}"})
         finally:
             log.info("工作线程正在关闭，开始清理资源...")
-            # 核心修改：不再检查 main_context，而是直接调用 stop()
-            # PlaywrightManager.stop() 内部会处理所有必要的检查和关闭流程
             if self.playwright_manager:
                 self.playwright_manager.stop()
 
@@ -1786,7 +1829,10 @@ class AnalyzerDialog(QDialog):
         top_layout.addStretch()
         self.analyze_full_btn = QPushButton(self.__tr("生成完整分析报告"))
         self.analyze_full_btn.setEnabled(False)
+        self.export_html_btn = QPushButton(self.__tr("导出为HTML报告"))
+        self.export_html_btn.setEnabled(False)
         top_layout.addWidget(self.analyze_full_btn)
+        top_layout.addWidget(self.export_html_btn)
         layout.addLayout(top_layout)
 
         filter_layout = QHBoxLayout()
@@ -1804,7 +1850,7 @@ class AnalyzerDialog(QDialog):
         layout.addLayout(filter_layout)
 
         self.full_analysis_tree = ContextMenuTreeWidget(self.settings)
-        self.full_analysis_tree.setHeaderLabels([self.__tr("#"), self.__tr("模组文件夹"), self.__tr("Nexus ID"), self.__tr("备注")])
+        self.full_analysis_tree.setHeaderLabels([self.__tr("#"), self.__tr("模组文件夹"), self.__tr("Nexus ID"), self.__tr("备注 / 所在分隔符")])
         self.full_analysis_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.full_analysis_tree.header().resizeSection(0, 80)
         self.full_analysis_tree.header().resizeSection(1, 350)
@@ -1813,6 +1859,7 @@ class AnalyzerDialog(QDialog):
         self.tabs.addTab(tab, self.__tr("完整分析"))
         
         self.analyze_full_btn.clicked.connect(self.trigger_full_profile_analysis)
+        self.export_html_btn.clicked.connect(self.trigger_export_html)
         self.full_analysis_tree.customContextMenuRequested.connect(self.show_tree_context_menu)
         self.hide_vr_checkbox.stateChanged.connect(self.filter_full_analysis_view)
         self.hide_optional_checkbox.stateChanged.connect(self.filter_full_analysis_view)
@@ -2196,18 +2243,24 @@ class AnalyzerDialog(QDialog):
             elif button is self.refresh_cache_btn: button.clicked.connect(self.trigger_refresh_cache)
             elif button is self.login_btn: button.clicked.connect(self.trigger_login)
             elif button is self.save_settings_btn: button.clicked.connect(self.trigger_save_settings)
+            elif button is self.export_html_btn: button.clicked.connect(self.trigger_export_html)
 
         all_buttons = [
             self.analyze_single_btn, self.generate_graph_btn, self.analyze_full_btn,
             self.find_missing_trans_btn, self.delete_selected_cache_btn, self.clear_all_cache_btn,
-            self.refresh_cache_btn, self.login_btn, self.save_settings_btn, self.manage_rules_btn
+            self.refresh_cache_btn, self.login_btn, self.save_settings_btn, self.manage_rules_btn,
+            self.export_html_btn
         ]
         
         for b in all_buttons:
             if b is not button:
                 if not is_starting:
                     is_always_enabled = b in [self.save_settings_btn, self.login_btn, self.manage_rules_btn]
-                    b.setEnabled(self.browser_ready or is_always_enabled)
+                    is_analysis_dependent = b in [self.export_html_btn]
+                    
+                    b.setEnabled((self.browser_ready or is_always_enabled) and not is_analysis_dependent)
+                    if b is self.export_html_btn:
+                        b.setEnabled(bool(self.last_full_analysis_data))
                 else:
                     b.setEnabled(False)
             else:
@@ -2328,6 +2381,7 @@ class AnalyzerDialog(QDialog):
             self.update_progress(1, 1, self.__tr("依赖关系图生成完成！"))
         elif analysis_type == "full_analysis":
             self.last_full_analysis_data = data
+            self.export_html_btn.setEnabled(bool(data and "error" not in data))
             if data and "error" in data: self.on_error(self.__tr("无法生成分析报告。"))
             elif data:
                 self.populate_full_analysis_results(data)
@@ -2349,11 +2403,15 @@ class AnalyzerDialog(QDialog):
             problem_group = QTreeWidgetItem(tree, [self.__tr("诊断报告 (排序问题)")])
             problem_group.setForeground(0, QBrush(QColor("red")))
             for problem in data["load_order_problems"]:
+                remark = self.__tr("应排在 '{provider}' 之后 (在: {separator})").format(
+                    provider=problem['provider_folder'],
+                    separator=problem['separator']
+                )
                 problem_item = QTreeWidgetItem(problem_group, 
                     ["", 
                      problem['mod_folder'],
                      problem['mod_id'],
-                     self.__tr("应排在 '{provider}' 之后").format(provider=problem['provider_folder'])
+                     remark
                     ])
                 problem_item.setData(0, Qt.ItemDataRole.UserRole, problem['mod_id'])
                 problem_item.setData(1, Qt.ItemDataRole.UserRole, problem['mod_folder'])
@@ -2572,7 +2630,7 @@ class AnalyzerDialog(QDialog):
         menu.exec(tree.viewport().mapToGlobal(position))
 
     def correct_load_order(self):
-        if not self.last_full_analysis_data:
+        if not self.last_full_analysis_data or not self.worker or not self.worker.analyzer:
             QMessageBox.warning(self, self.__tr("无数据"), self.__tr("无法执行修正，请先生成一份完整的分析报告。"))
             return
 
@@ -2590,86 +2648,104 @@ class AnalyzerDialog(QDialog):
             if dependent_folder and provider_folder:
                 problems_to_fix.add((dependent_folder, provider_folder))
                 user_selected_folders.add(dependent_folder)
-                user_selected_folders.add(provider_folder)
+        
+        if not problems_to_fix: return
 
-        if not problems_to_fix:
-            QMessageBox.warning(self, self.__tr("无数据"), self.__tr("无法从您的选择中识别出要修正的问题。"))
-            return
-
+        analyzer = self.worker.analyzer
+        full_graph = self.last_full_analysis_data.get("full_graph", defaultdict(list))
+        
         mod_list = self.organizer.modList()
         original_order = mod_list.allModsByProfilePriority()
+        
+        # --- 获取分隔符信息 ---
+        separator_map = {}
+        separator_boundaries = defaultdict(lambda: {'start': len(original_order), 'end': -1})
+        current_separator = self.__tr("无分隔符")
+        separator_boundaries[current_separator] = {'start': 0, 'end': -1}
+        
+        for i, mod_name in enumerate(original_order):
+            if mod_list.getMod(mod_name).isSeparator():
+                if current_separator != self.__tr("无分隔符"):
+                    separator_boundaries[current_separator]['end'] = i
+                current_separator = mod_name
+                separator_boundaries[current_separator]['start'] = i + 1
+            else:
+                separator_map[mod_name] = current_separator
+        separator_boundaries[current_separator]['end'] = len(original_order)
+        # --- 结束获取分隔符信息 ---
+        
         proposed_order = list(original_order)
+        mods_to_move = {p[0] for p in problems_to_fix}
 
-        max_passes = len(problems_to_fix) * len(proposed_order)
-        passes = 0
-        while passes < max_passes:
-            passes += 1
+        # 迭代几次以求稳定解
+        for _ in range(len(mods_to_move) + 2):
             made_change_in_pass = False
-            for dependent, provider in problems_to_fix:
+            for dependent_mod in mods_to_move:
+                best_pos = -1
+                min_disruption = float('inf')
+                
                 try:
-                    idx_dep = proposed_order.index(dependent)
-                    idx_pro = proposed_order.index(provider)
-                except ValueError:
-                    continue
+                    original_pos = proposed_order.index(dependent_mod)
+                except ValueError: continue
 
-                if idx_pro > idx_dep:
-                    proposed_order.pop(idx_pro)
-                    proposed_order.insert(idx_dep, provider)
+                # 必须排在这些模组之后
+                must_be_after_mods = {p[1] for p in problems_to_fix if p[0] == dependent_mod}
+                last_provider_pos = -1
+                for provider in must_be_after_mods:
+                    try: last_provider_pos = max(last_provider_pos, proposed_order.index(provider))
+                    except ValueError: continue
+
+                dependent_separator = separator_map.get(dependent_mod, self.__tr("无分隔符"))
+                sep_start = separator_boundaries[dependent_separator]['start']
+                sep_end = separator_boundaries[dependent_separator]['end']
+                
+                search_start = max(sep_start, last_provider_pos + 1)
+                
+                temp_order = list(proposed_order)
+                temp_order.pop(original_pos)
+                
+                current_best_order = None
+
+                # 在分隔符内搜索
+                for i in range(search_start, sep_end + 1):
+                    candidate_order = temp_order[:i] + [dependent_mod] + temp_order[i:]
+                    disruption = analyzer._calculate_disruption_score(candidate_order, full_graph, analyzer.folder_to_id)
+                    
+                    if disruption < min_disruption:
+                        min_disruption = disruption
+                        best_pos = i
+                        current_best_order = candidate_order
+                    elif disruption == min_disruption:
+                        if abs(i - original_pos) < abs(best_pos - original_pos):
+                            best_pos = i
+                            current_best_order = candidate_order
+
+                if current_best_order and proposed_order != current_best_order:
+                    proposed_order = current_best_order
                     made_change_in_pass = True
-            
+
             if not made_change_in_pass:
                 break
         
-        if passes >= max_passes:
-            self.log(self.__tr("修正排序时达到最大迭代次数，可能存在无法解决的冲突。"), "warning")
-
         moved_mods = {mod for i, mod in enumerate(original_order) if proposed_order[i] != mod}
         moved_mods.update({mod for i, mod in enumerate(proposed_order) if original_order[i] != mod})
 
         if not moved_mods:
-            QMessageBox.information(self, self.__tr("无需调整"), self.__tr("根据您的选择，当前顺序已满足要求。"))
+            QMessageBox.information(self, self.__tr("无需调整"), self.__tr("根据您的选择和最小破坏原则，当前顺序已是最佳。"))
             return
 
-        current_priorities = {name: i for i, name in enumerate(original_order)}
-        affected_indices = {current_priorities[name] for name in user_selected_folders if name in current_priorities}
-        
-        for i, mod_name in enumerate(proposed_order):
-            if mod_name in user_selected_folders:
-                affected_indices.add(i)
-
-        if not affected_indices:
-            affected_indices = {current_priorities[name] for name in moved_mods if name in current_priorities}
-            for i, mod_name in enumerate(proposed_order):
-                if mod_name in moved_mods:
-                    affected_indices.add(i)
-
-        min_idx, max_idx = min(affected_indices), max(affected_indices)
-        context = 5
-        start_idx = max(0, min_idx - context)
-        end_idx = min(len(original_order), max_idx + context + 1)
-
-        original_data_slice = [{"name": name, "priority": i, "is_separator": mod_list.getMod(name).isSeparator()} for i, name in enumerate(original_order[start_idx:end_idx], start=start_idx)]
-        proposed_data_slice = [{"name": name, "priority": i, "is_separator": mod_list.getMod(name).isSeparator()} for i, name in enumerate(proposed_order[start_idx:end_idx], start=start_idx)]
-        
-        if start_idx > 0:
-            original_data_slice.insert(0, {"name": "...", "priority": -1, "is_separator": True})
-            proposed_data_slice.insert(0, {"name": "...", "priority": -1, "is_separator": True})
-        if end_idx < len(original_order):
-            original_data_slice.append({"name": "...", "priority": -1, "is_separator": True})
-            proposed_data_slice.append({"name": "...", "priority": -1, "is_separator": True})
-
-        dialog = CorrectionDialog(original_data_slice, proposed_data_slice, moved_mods, user_selected_folders, self)
+        dialog = CorrectionDialog(
+            [{"name": n, "priority": i, "is_separator": mod_list.getMod(n).isSeparator()} for i, n in enumerate(original_order)],
+            [{"name": n, "priority": i, "is_separator": mod_list.getMod(n).isSeparator()} for i, n in enumerate(proposed_order)],
+            moved_mods, user_selected_folders, self
+        )
         if dialog.exec():
             self.append_to_log_view(self.__tr("开始修正模组加载顺序..."))
             self.setEnabled(False)
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             
             try:
-                for i in range(len(proposed_order) - 1, -1, -1):
-                    mod_name = proposed_order[i]
-                    if mod_list.priority(mod_name) != i:
-                        mod_list.setPriority(mod_name, i)
-
+                mod_list.setPriorities(proposed_order)
                 QApplication.processEvents()
                 self.organizer.refresh(False)
                 QMessageBox.information(self, self.__tr("操作完成"), self.__tr("模组顺序已修正。建议重新运行分析以验证结果。"))
@@ -2793,6 +2869,97 @@ class AnalyzerDialog(QDialog):
                 self.append_to_log_view(self.__tr(".dot 源文件已保存到: {path}").format(path=file_path))
             except Exception as e: self.on_error(self.__tr("保存文件时出错: {error}").format(error=e))
 
+    def trigger_export_html(self):
+        if not self.last_full_analysis_data:
+            QMessageBox.warning(self, self.__tr("无数据"), self.__tr("请先生成一份完整的分析报告。"))
+            return
+
+        default_filename = f"MO2_Analysis_{self.settings.SANITIZED_GAME_NAME}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        file_path, _ = QFileDialog.getSaveFileName(self, self.__tr("保存HTML报告"), default_filename, "HTML Files (*.html)")
+
+        if file_path:
+            try:
+                html_content = self.generate_html_report(self.last_full_analysis_data)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                self.append_to_log_view(self.__tr("报告已成功导出到: {path}").format(path=file_path))
+                QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            except Exception as e:
+                self.on_error(self.__tr("导出HTML时出错: {error}").format(error=e))
+
+    def generate_html_report(self, data: dict) -> str:
+        """根据分析数据生成一个独立的HTML报告文件。"""
+        game_name = self.settings.GAME_NAME
+        report_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # --- CSS样式 ---
+        css = """
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; margin: 0; padding: 0; background-color: #f4f7f6; color: #333; }
+            .container { max-width: 1200px; margin: 20px auto; padding: 20px; background-color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px; }
+            h1, h2, h3 { color: #2c3e50; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+            h1 { text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+            th { background-color: #3498db; color: white; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            tr:hover { background-color: #eaf5ff; }
+            .tag { display: inline-block; padding: 2px 6px; font-size: 0.8em; border-radius: 4px; color: white; margin-left: 5px; }
+            .tag-vr { background-color: #9b59b6; }
+            .tag-optional { background-color: #f39c12; }
+            .tag-recommended { background-color: #2ecc71; }
+            .problem { color: #c0392b; font-weight: bold; }
+            .missing { background-color: #ffebee; }
+            .order-problem { background-color: #fff9c4; }
+            .cycle-breaker { color: #e67e22; font-weight: bold; }
+            .mod-link { color: #2980b9; text-decoration: none; }
+            .mod-link:hover { text-decoration: underline; }
+            footer { text-align: center; margin-top: 20px; font-size: 0.9em; color: #7f8c8d; }
+        </style>
+        """
+
+        def create_mod_link(mod_id, text):
+            return f'<a class="mod-link" href="{self.settings.NEXUS_BASE_URL}/{game_name}/mods/{mod_id}" target="_blank">{text}</a>'
+
+        # --- HTML主体 ---
+        html = f"<!DOCTYPE html><html lang='zh-CN'><head><meta charset='UTF-8'><title>MO2 依赖分析报告</title>{css}</head><body>"
+        html += f"<div class='container'><h1>Mod Organizer 2 依赖分析报告</h1>"
+        html += f"<p><strong>游戏:</strong> {game_name}<br><strong>报告生成时间:</strong> {report_time}</p>"
+
+        # 诊断报告 - 依赖缺失
+        if missing_report := data.get("missing_report"):
+            html += "<h2>诊断报告: 依赖缺失</h2><table><tr><th>缺失的模组</th><th>ID</th><th>被以下已安装模组需要</th></tr>"
+            for mid, report in missing_report.items():
+                req_by_html = "<ul>"
+                for folder, notes, tags in report["required_by_installed"]:
+                    tags_html = "".join([f'<span class="tag tag-{t}">{t}</span>' for t in tags])
+                    req_by_html += f"<li>{folder} ({notes or '无备注'}) {tags_html}</li>"
+                req_by_html += "</ul>"
+                html += f"<tr class='missing'><td>{create_mod_link(mid, report['name'])}</td><td>{mid}</td><td>{req_by_html}</td></tr>"
+            html += "</table>"
+        
+        # 诊断报告 - 排序问题
+        if problems := data.get("load_order_problems"):
+            html += "<h2>诊断报告: 加载顺序问题</h2><table><tr><th>模组</th><th>问题描述</th><th>所在分隔符</th></tr>"
+            for p in problems:
+                desc = f"应排在 <strong>{p['provider_folder']}</strong> 之后"
+                html += f"<tr class='order-problem'><td>{create_mod_link(p['mod_id'], p['mod_folder'])}</td><td>{desc}</td><td>{p['separator']}</td></tr>"
+            html += "</table>"
+
+        # 建议的加载顺序
+        if sorted_order := data.get("sorted_order"):
+            html += "<h2>建议的加载顺序</h2><table><tr><th>#</th><th>模组文件夹</th><th>Nexus ID</th><th>备注</th></tr>"
+            for i, folder in enumerate(sorted_order):
+                mod_id = self.worker.analyzer.folder_to_id.get(folder, "N/A")
+                remark = ""
+                if folder in data.get("broken_cycle_nodes", []):
+                    remark = "<span class='cycle-breaker'>循环依赖打破点</span>"
+                html += f"<tr><td>{i+1}</td><td>{folder}</td><td>{create_mod_link(mod_id, mod_id) if mod_id != 'N/A' else 'N/A'}</td><td>{remark}</td></tr>"
+            html += "</table>"
+
+        html += "<footer>由 Nexus Mods 依赖分析器生成</footer></div></body></html>"
+        return html
+
     def closeEvent(self, event):
         self.append_to_log_view(self.__tr("正在关闭插件窗口..."))
         self.setEnabled(False)
@@ -2830,7 +2997,7 @@ class ModDepAnalyzerPlugin(mobase.IPluginTool):
     def name(self) -> str: return "dep_analysis"
     def author(self) -> str: return "Renil & Gemini AI"
     def description(self) -> str: return self.__tr("分析Nexus Mods依赖关系并为MO2生成排序建议的工具。")
-    def version(self) -> mobase.VersionInfo: return mobase.VersionInfo(7, 6, 2, mobase.ReleaseType.FINAL)
+    def version(self) -> mobase.VersionInfo: return mobase.VersionInfo(8, 0, 0, mobase.ReleaseType.FINAL)
     def isActive(self) -> bool: return DEPENDENCIES_MET
     def displayName(self) -> str: return self.__tr("Nexus Mods 依赖分析器")
     def tooltip(self) -> str: return self.__tr("启动依赖分析工具")

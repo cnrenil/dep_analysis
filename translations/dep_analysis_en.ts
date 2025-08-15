@@ -16,52 +16,36 @@
         <translation>Analyzer initialization complete.</translation>
     </message>
     <message>
-        <source>缓存数据库 '{table}' 初始化成功。</source>
-        <translation>Cache database '{table}' initialized successfully.</translation>
+        <source>缓存数据库 &apos;{table}&apos; 初始化成功。</source>
+        <translation>Cache database &apos;{table}&apos; initialized successfully.</translation>
     </message>
     <message>
         <source>初始化缓存数据库时出错: {error}</source>
         <translation>Error initializing cache database: {error}</translation>
     </message>
     <message>
-        <source>浏览器实例已连接。</source>
-        <translation>Browser instance connected.</translation>
+        <source>正在初始化浏览器并检查登录状态...</source>
+        <translation>Initializing browser and checking login status...</translation>
     </message>
     <message>
-        <source>正在初始化浏览器...</source>
-        <translation>Initializing browser...</translation>
+        <source>正在访问Nexus Mods账户页面以验证登录...</source>
+        <translation>Accessing Nexus Mods account page to verify login...</translation>
     </message>
     <message>
-        <source>未能加载Nexus Mods的Cookies。请确保您已在MO2中登录Nexus。</source>
-        <translation>Failed to load Nexus Mods Cookies. Please ensure you are logged into Nexus in MO2.</translation>
+        <source>验证成功，已登录Nexus Mods。</source>
+        <translation>Verification successful, logged into Nexus Mods.</translation>
     </message>
     <message>
-        <source>浏览器初始化成功。</source>
-        <translation>Browser initialized successfully.</translation>
+        <source>未登录Nexus Mods。部分模组（如成人内容）可能无法抓取。</source>
+        <translation>Not logged into Nexus Mods. Some mods (e.g., adult content) may not be fetchable.</translation>
     </message>
     <message>
-        <source>初始化浏览器时发生严重错误: {error}</source>
-        <translation>A critical error occurred while initializing the browser: {error}</translation>
-    </message>
-    <message>
-        <source>Playwright初始化失败，可能是相关文件损坏或被杀毒软件阻止。</source>
-        <translation>Playwright initialization failed. The relevant files may be corrupted or blocked by antivirus software.</translation>
-    </message>
-    <message>
-        <source>正在关闭浏览器...</source>
-        <translation>Closing browser...</translation>
-    </message>
-    <message>
-        <source>缓存数据库连接已关闭。</source>
-        <translation>Cache database connection closed.</translation>
-    </message>
-    <message>
-        <source>浏览器已关闭。</source>
-        <translation>Browser closed.</translation>
+        <source>检查登录状态时出错: {error}</source>
+        <translation>Error checking login status: {error}</translation>
     </message>
     <message>
         <source>开始分析单个模组...</source>
-        <translation>Starting single mod analysis...</translation>
+        <translation>Starting analysis for a single mod...</translation>
     </message>
     <message>
         <source>分析完成。</source>
@@ -73,7 +57,7 @@
     </message>
     <message>
         <source>开始生成依赖关系图...</source>
-        <translation>Starting dependency graph generation...</translation>
+        <translation>Generating dependency graph...</translation>
     </message>
     <message>
         <source>关系图生成完成。</source>
@@ -81,27 +65,23 @@
     </message>
     <message>
         <source>Graphviz库未安装，无法生成关系图。</source>
-        <translation>The Graphviz library is not installed. Unable to generate a dependency graph.</translation>
+        <translation>Graphviz library not installed, cannot generate graph.</translation>
     </message>
     <message>
         <source>未找到Graphviz可执行程序。请确保已安装Graphviz并将其添加至系统PATH。</source>
-        <translation>Graphviz executable not found. Please ensure Graphviz is installed and added to your system PATH.</translation>
+        <translation>Graphviz executable not found. Please ensure Graphviz is installed and added to the system PATH.</translation>
     </message>
     <message>
         <source>未找到任何带有效ID的已启用模组，无法生成分析报告。</source>
-        <translation>No enabled mods with valid IDs were found. Unable to generate an analysis report.</translation>
+        <translation>No enabled mods with valid IDs found, cannot generate analysis report.</translation>
     </message>
     <message>
         <source>开始扫描翻译...</source>
         <translation>Starting translation scan...</translation>
     </message>
     <message>
-        <source>正在检查</source>
-        <translation>Checking</translation>
-    </message>
-    <message>
-        <source>检测到 '{mod_name}' 的一个翻译版本已安装，跳过。</source>
-        <translation>A translation version for '{mod_name}' is detected and installed. Skipping.</translation>
+        <source>检测到 &apos;{mod_name}&apos; 的一个翻译版本已安装，跳过。</source>
+        <translation>A translated version of &apos;{mod_name}&apos; is already installed, skipping.</translation>
     </message>
     <message>
         <source>扫描完成。</source>
@@ -113,11 +93,11 @@
     </message>
     <message>
         <source>已从缓存中删除 {count} 个条目。</source>
-        <translation>{count} entries deleted from cache.</translation>
+        <translation>Deleted {count} entries from cache.</translation>
     </message>
     <message>
         <source>已清空当前游戏的所有缓存。</source>
-        <translation>All cache entries for the current game have been cleared.</translation>
+        <translation>Cleared all cache for the current game.</translation>
     </message>
     <message>
         <source>规则已成功保存到 rules.toml。</source>
@@ -129,15 +109,15 @@
     </message>
     <message>
         <source>保存规则失败，请检查日志。</source>
-        <translation>Failed to save rules. Please check the log.</translation>
+        <translation>Failed to save rules, please check the log.</translation>
     </message>
     <message>
-        <source>所有待添加的ID已存在于规则 '{section}.{list}' 中，无需操作。</source>
-        <translation>All IDs to be added already exist in rule '{section}.{list}'. No action required.</translation>
+        <source>所有待添加的ID已存在于规则 &apos;{section}.{list}&apos; 中，无需操作。</source>
+        <translation>All IDs to be added already exist in rule &apos;{section}.{list}&apos;, no action needed.</translation>
     </message>
     <message>
-        <source>已成功将 {count} 个新ID添加到规则 '{section}.{list}'。</source>
-        <translation>Successfully added {count} new IDs to rule '{section}.{list}'.</translation>
+        <source>已成功将 {count} 个新ID添加到规则 &apos;{section}.{list}&apos;。</source>
+        <translation>Successfully added {count} new IDs to rule &apos;{section}.{list}&apos;.</translation>
     </message>
     <message>
         <source>更新规则文件时出错: {error}</source>
@@ -145,63 +125,47 @@
     </message>
     <message>
         <source>更新规则失败，请检查日志。</source>
-        <translation>Failed to update rules. Please check the log.</translation>
+        <translation>Failed to update rules, please check the log.</translation>
     </message>
     <message>
-        <source>检测到非标准Cookie格式，已自动清理以提高兼容性。</source>
-        <translation>Non-standard Cookie format detected. Automatically cleaned for better compatibility.</translation>
+        <source>插件设置已成功保存并重新加载。</source>
+        <translation>Plugin settings have been saved and reloaded successfully.</translation>
     </message>
     <message>
-        <source>从JSON加载Cookies失败: {error}</source>
-        <translation>Failed to load Cookies from JSON: {error}</translation>
+        <source>保存设置时出错: {error}</source>
+        <translation>Error saving settings: {error}</translation>
     </message>
     <message>
-        <source>正在从MO2的 nexus_cookies.dat 转换Cookies...</source>
-        <translation>Converting Cookies from MO2's nexus_cookies.dat...</translation>
-    </message>
-    <message>
-        <source>已成功将Cookies缓存到: {path}</source>
-        <translation>Cookies successfully cached to: {path}</translation>
-    </message>
-    <message>
-        <source>保存Cookies JSON文件时出错: {error}</source>
-        <translation>Error saving Cookies JSON file: {error}</translation>
-    </message>
-    <message>
-        <source>读取或转换 '{path}' 时发生错误: {error}</source>
-        <translation>An error occurred while reading or converting '{path}': {error}</translation>
-    </message>
-    <message>
-        <source>未找到任何有效的Cookies源。</source>
-        <translation>No valid Cookies source found.</translation>
-    </message>
-    <message>
-        <source>在此列表中的模组ID将被分析器视为“已安装”或“已满足”。</source>
-        <translation>Mod IDs in this list will be considered "installed" or "satisfied" by the analyzer.</translation>
-    </message>
-    <message>
-        <source>格式为: '被替代的ID' = '替换为的ID' (注意：键值都应为字符串)</source>
-        <translation>Format: 'Replaced ID' = 'Replacement ID' (Note: both key and value should be strings)</translation>
-    </message>
-    <message>
-        <source>在此列表中的已安装模组，其所有的前置要求都将被忽略。</source>
-        <translation>For installed mods in this list, all their requirements will be ignored.</translation>
-    </message>
-    <message>
-        <source>已创建默认规则文件: rules.toml</source>
-        <translation>Default rules file created: rules.toml</translation>
-    </message>
-    <message>
-        <source>创建规则文件模板失败！</source>
-        <translation>Failed to create rules file template!</translation>
+        <source>保存设置失败，请检查日志。</source>
+        <translation>Failed to save settings, please check the log.</translation>
     </message>
     <message>
         <source>成功加载 {ign} 条忽略, {rep} 条替换, {ign_req} 条前置忽略规则。</source>
-        <translation>Successfully loaded {ign} ignore, {rep} replace, and {ign_req} ignore requirement rules.</translation>
+        <translation>Successfully loaded {ign} ignore, {rep} replacement, and {ign_req} ignore-requirement rules.</translation>
     </message>
     <message>
         <source>解析规则文件时出错: {error}</source>
         <translation>Error parsing rules file: {error}</translation>
+    </message>
+    <message>
+        <source>在此列表中的模组ID将被分析器视为“已安装”或“已满足”。</source>
+        <translation>Mod IDs in this list will be treated as &quot;installed&quot; or &quot;satisfied&quot; by the analyzer.</translation>
+    </message>
+    <message>
+        <source>格式为: &apos;被替代的ID&apos; = &apos;替换为的ID&apos; (注意：键值都应为字符串)</source>
+        <translation>Format: &apos;replaced_id&apos; = &apos;replacement_id&apos; (Note: both key and value should be strings)</translation>
+    </message>
+    <message>
+        <source>在此列表中的已安装模组，其所有的前置要求都将被忽略。</source>
+        <translation>All requirements for installed mods in this list will be ignored.</translation>
+    </message>
+    <message>
+        <source>已创建默认规则文件: rules.toml</source>
+        <translation>Created default rules file: rules.toml</translation>
+    </message>
+    <message>
+        <source>创建规则文件模板失败！</source>
+        <translation>Failed to create rules file template!</translation>
     </message>
     <message>
         <source>已解析 {count} 个已安装的带ID的模组。</source>
@@ -210,6 +174,10 @@
     <message>
         <source>缓存命中: ID {mod_id}</source>
         <translation>Cache hit: ID {mod_id}</translation>
+    </message>
+    <message>
+        <source>抓取 {mod_id} 失败，在 {delay} 秒后重试 ({attempt}/{max_retries})...</source>
+        <translation>Failed to fetch {mod_id}, retrying in {delay}s ({attempt}/{max_retries})...</translation>
     </message>
     <message>
         <source>正在抓取: ID {mod_id}</source>
@@ -225,11 +193,11 @@
     </message>
     <message>
         <source>未知模组名称</source>
-        <translation>Unknown mod name</translation>
+        <translation>Unknown Mod Name</translation>
     </message>
     <message>
         <source>抓取成功: {mod_name} ({mod_id})</source>
-        <translation>Fetch successful: {mod_name} ({mod_id})</translation>
+        <translation>Successfully fetched: {mod_name} ({mod_id})</translation>
     </message>
     <message>
         <source>加载中...</source>
@@ -244,18 +212,6 @@
         <translation>Phase 1: Fetching installed mods...</translation>
     </message>
     <message>
-        <source>抓取已安装模组</source>
-        <translation>Fetching installed mods</translation>
-    </message>
-    <message>
-        <source>抓取第 {d} 层依赖...</source>
-        <translation>Fetching tier {d} dependencies...</translation>
-    </message>
-    <message>
-        <source>抓取第 {d} 层依赖</source>
-        <translation>Fetching tier {d} dependencies</translation>
-    </message>
-    <message>
         <source>依赖网络构建完成。</source>
         <translation>Dependency network built.</translation>
     </message>
@@ -265,124 +221,15 @@
     </message>
     <message>
         <source>排序完成。</source>
-        <translation>Sort complete.</translation>
-    </message>
-</context>
-<context>
-    <name>SearchBar</name>
-    <message>
-        <source>输入ID、名称、备注等...</source>
-        <translation>Enter ID, name, notes, etc...</translation>
+        <translation>Sorting complete.</translation>
     </message>
     <message>
-        <source>下一个</source>
-        <translation>Next</translation>
+        <source>无分隔符</source>
+        <translation>None_separator</translation>
     </message>
     <message>
-        <source>关闭 (Esc)</source>
-        <translation>Close (Esc)</translation>
-    </message>
-    <message>
-        <source>搜索:</source>
-        <translation>Search:</translation>
-    </message>
-</context>
-<context>
-    <name>CorrectionDialog</name>
-    <message>
-        <source>确认模组顺序修正</source>
-        <translation>Confirm Mod Order Correction</translation>
-    </message>
-    <message>
-        <source>原始顺序 (黄色:选中 / 蓝色:受影响)</source>
-        <translation>Original Order (Yellow: Selected / Blue: Affected)</translation>
-    </message>
-    <message>
-        <source>顺序</source>
-        <translation>Order</translation>
-    </message>
-    <message>
-        <source>模组/分隔符名称</source>
-        <translation>Mod/Separator Name</translation>
-    </message>
-    <message>
-        <source>建议顺序 (绿色:选中 / 淡绿:受影响)</source>
-        <translation>Suggested Order (Green: Selected / Light Green: Affected)</translation>
-    </message>
-    <message>
-        <source>应用更改</source>
-        <translation>Apply Changes</translation>
-    </message>
-    <message>
-        <source>取消</source>
-        <translation>Cancel</translation>
-    </message>
-</context>
-<context>
-    <name>RulesManagerDialog</name>
-    <message>
-        <source>规则管理器</source>
-        <translation>Rules Manager</translation>
-    </message>
-    <message>
-        <source>忽略列表 (将这些ID视为已安装)</source>
-        <translation>Ignore List (Treat these IDs as installed)</translation>
-    </message>
-    <message>
-        <source>添加</source>
-        <translation>Add</translation>
-    </message>
-    <message>
-        <source>删除</source>
-        <translation>Delete</translation>
-    </message>
-    <message>
-        <source>忽略其前置列表 (将忽略这些ID的所有前置)</source>
-        <translation>Ignore Requirements List (Ignore all requirements for these IDs)</translation>
-    </message>
-    <message>
-        <source>替换列表 ('被替换的ID' -> '替换为的ID')</source>
-        <translation>Replace List ('Replaced ID' -> 'Replacement ID')</translation>
-    </message>
-    <message>
-        <source>被替换的ID</source>
-        <translation>Replaced ID</translation>
-    </message>
-    <message>
-        <source>替换为的ID</source>
-        <translation>Replacement ID</translation>
-    </message>
-    <message>
-        <source>添加忽略ID</source>
-        <translation>Add Ignore ID</translation>
-    </message>
-    <message>
-        <source>请输入要添加的Nexus Mod ID:</source>
-        <translation>Please enter the Nexus Mod ID to add:</translation>
-    </message>
-    <message>
-        <source>输入无效</source>
-        <translation>Invalid Input</translation>
-    </message>
-    <message>
-        <source>ID必须为纯数字。</source>
-        <translation>The ID must be a number.</translation>
-    </message>
-    <message>
-        <source>添加前置忽略ID</source>
-        <translation>Add Ignore Requirement ID</translation>
-    </message>
-    <message>
-        <source>添加替换规则</source>
-        <translation>Add Replacement Rule</translation>
-    </message>
-    <message>
-        <source>第一步: 输入被替换的模组ID:</source>
-        <translation>Step 1: Enter the mod ID to be replaced:</translation>
-    </message>
-    <message>
-        <source>第二步: 输入用于替换的模组ID:</source>
-        <translation>Step 2: Enter the mod ID for replacement:</translation>
+        <source>未知</source>
+        <translation>Unknown</translation>
     </message>
 </context>
 <context>
@@ -392,24 +239,16 @@
         <translation>Nexus Mods Dependency Analyzer</translation>
     </message>
     <message>
-        <source>正在初始化...</source>
-        <translation>Initializing...</translation>
-    </message>
-    <message>
         <source>日志</source>
         <translation>Log</translation>
     </message>
     <message>
-        <source>准备就绪</source>
-        <translation>Ready</translation>
+        <source>登录状态: 正在检查...</source>
+        <translation>Login Status: Checking...</translation>
     </message>
     <message>
-        <source>管理规则</source>
-        <translation>Manage Rules</translation>
-    </message>
-    <message>
-        <source>关闭</source>
-        <translation>Close</translation>
+        <source>正在初始化...</source>
+        <translation>Initializing...</translation>
     </message>
     <message>
         <source>Nexus Mod ID:</source>
@@ -417,7 +256,7 @@
     </message>
     <message>
         <source>例如: 3863</source>
-        <translation>e.g. 3863</translation>
+        <translation>e.g., 3863</translation>
     </message>
     <message>
         <source>分析依赖树</source>
@@ -461,11 +300,11 @@
     </message>
     <message>
         <source>保存 SVG 图像...</source>
-        <translation>Save SVG image...</translation>
+        <translation>Save SVG Image...</translation>
     </message>
     <message>
         <source>导出 .dot 文件...</source>
-        <translation>Export .dot file...</translation>
+        <translation>Export .dot File...</translation>
     </message>
     <message>
         <source>依赖关系图</source>
@@ -473,11 +312,15 @@
     </message>
     <message>
         <source>分析所有已启用模组，生成建议的加载顺序报告。</source>
-        <translation>Analyze all enabled mods and generate a suggested load order report.</translation>
+        <translation>Analyze all enabled mods to generate a suggested load order report.</translation>
     </message>
     <message>
         <source>生成完整分析报告</source>
         <translation>Generate Full Analysis Report</translation>
+    </message>
+    <message>
+        <source>导出为HTML报告</source>
+        <translation>Generate HTML Report</translation>
     </message>
     <message>
         <source>启用加载顺序诊断</source>
@@ -500,6 +343,10 @@
         <translation>Nexus ID</translation>
     </message>
     <message>
+        <source>备注 / 所在分隔符</source>
+        <translation>Comment / Separator</translation>
+    </message>
+    <message>
         <source>完整分析</source>
         <translation>Full Analysis</translation>
     </message>
@@ -513,7 +360,7 @@
     </message>
     <message>
         <source>例如: Mandarin, German, Russian</source>
-        <translation>e.g. Mandarin, German, Russian</translation>
+        <translation>e.g., Mandarin, German, Russian</translation>
     </message>
     <message>
         <source>开始查找</source>
@@ -521,7 +368,7 @@
     </message>
     <message>
         <source>显示原版模组更新时间</source>
-        <translation>Show original mod update time</translation>
+        <translation>Show Original Mod Update Time</translation>
     </message>
     <message>
         <source>原版模组 / 翻译名称</source>
@@ -533,7 +380,7 @@
     </message>
     <message>
         <source>更新时间</source>
-        <translation>Update Time</translation>
+        <translation>Last Updated</translation>
     </message>
     <message>
         <source>查找缺失的翻译</source>
@@ -568,20 +415,116 @@
         <translation>Cache Management</translation>
     </message>
     <message>
-        <source>未找到 '{text}' 的匹配项。</source>
-        <translation>No match found for '{text}'.</translation>
+        <source>浏览器与登录</source>
+        <translation>Browser &amp; Login</translation>
+    </message>
+    <message>
+        <source>浏览器类型:</source>
+        <translation>Browser Type:</translation>
+    </message>
+    <message>
+        <source>使用无头模式 (后台运行浏览器)</source>
+        <translation>Use Headless Mode (run browser in background)</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;警告:&lt;/b&gt; 无头模式可能无法绕过Cloudflare防护，导致抓取失败。</source>
+        <translation>&lt;b&gt;Warning:&lt;/b&gt; Headless mode may fail to bypass Cloudflare protection, leading to fetch failures.</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;提示:&lt;/b&gt; 有头模式更稳定，但会显示浏览器窗口。分析时请勿关闭此窗口。</source>
+        <translation>&lt;b&gt;Tip:&lt;/b&gt; Headed mode is more stable but will show a browser window. Do not close this window during analysis.</translation>
+    </message>
+    <message>
+        <source>登录 / 刷新 Nexus Cookies</source>
+        <translation>Login / Refresh Nexus Cookies</translation>
+    </message>
+    <message>
+        <source>显示高级网络设置</source>
+        <translation>Show Advanced Network Settings</translation>
+    </message>
+    <message>
+        <source>高级网络设置</source>
+        <translation>Advanced Network Settings</translation>
+    </message>
+    <message>
+        <source>请求超时:</source>
+        <translation>Request Timeout:</translation>
+    </message>
+    <message>
+        <source>请求延迟:</source>
+        <translation>Request Delay:</translation>
+    </message>
+    <message>
+        <source>最大重试次数:</source>
+        <translation>Max Retries:</translation>
+    </message>
+    <message>
+        <source>重试延迟:</source>
+        <translation>Retry Delay:</translation>
+    </message>
+    <message>
+        <source>拦截图片/CSS等资源以加速</source>
+        <translation>Block images/CSS to speed up</translation>
+    </message>
+    <message>
+        <source>拦截文件后缀 (逗号分隔):</source>
+        <translation>Block file extensions (comma-separated):</translation>
+    </message>
+    <message>
+        <source>日志等级:</source>
+        <translation>Log Level:</translation>
+    </message>
+    <message>
+        <source>分析设置</source>
+        <translation>Analysis Settings</translation>
+    </message>
+    <message>
+        <source>永不</source>
+        <translation>Never</translation>
+    </message>
+    <message>
+        <source>缓存有效期 (天):</source>
+        <translation>Cache Lifetime (days):</translation>
+    </message>
+    <message>
+        <source>最大递归深度:</source>
+        <translation>Max Recursion Depth:</translation>
+    </message>
+    <message>
+        <source>未安装模组抓取层数:</source>
+        <translation>Fetch depth for uninstalled mods:</translation>
+    </message>
+    <message>
+        <source>规则管理</source>
+        <translation>Rules Management</translation>
+    </message>
+    <message>
+        <source>编辑规则文件 (rules.toml)...</source>
+        <translation>Edit Rules File (rules.toml)...</translation>
+    </message>
+    <message>
+        <source>保存设置</source>
+        <translation>Save Settings</translation>
+    </message>
+    <message>
+        <source>设置</source>
+        <translation>Settings</translation>
+    </message>
+    <message>
+        <source>未找到 &apos;{text}&apos; 的匹配项。</source>
+        <translation>No matches found for &apos;{text}&apos;.</translation>
     </message>
     <message>
         <source>浏览器未就绪</source>
         <translation>Browser Not Ready</translation>
     </message>
     <message>
-        <source>浏览器正在初始化或初始化失败，请稍候。</source>
-        <translation>The browser is initializing or failed to initialize. Please wait.</translation>
+        <source>浏览器正在初始化或初始化失败。请稍候或在“设置”中尝试重新登录。</source>
+        <translation>Browser is initializing or failed to initialize. Please wait or try logging in again in the Settings tab.</translation>
     </message>
     <message>
         <source>操作正在进行</source>
-        <translation>Operation In Progress</translation>
+        <translation>Operation in Progress</translation>
     </message>
     <message>
         <source>请等待当前分析任务完成。</source>
@@ -590,6 +533,10 @@
     <message>
         <source>停止</source>
         <translation>Stop</translation>
+    </message>
+    <message>
+        <source>未知</source>
+        <translation>Unknown</translation>
     </message>
     <message>
         <source>✔ 已安装</source>
@@ -605,7 +552,7 @@
     </message>
     <message>
         <source>🔁 循环</source>
-        <translation>🔁 Cyclic</translation>
+        <translation>🔁 Cycle</translation>
     </message>
     <message>
         <source>✂️ 已截断</source>
@@ -618,10 +565,6 @@
     <message>
         <source> (未安装)</source>
         <translation> (Not Installed)</translation>
-    </message>
-    <message>
-        <source>未知</source>
-        <translation>Unknown</translation>
     </message>
     <message>
         <source>Nexus ID: {id}</source>
@@ -641,31 +584,43 @@
     </message>
     <message>
         <source>依赖树分析完成！</source>
-        <translation>Dependency Tree Analysis complete!</translation>
+        <translation>Dependency tree analysis complete!</translation>
     </message>
     <message>
         <source>依赖关系图生成完成！</source>
-        <translation>Dependency Graph generation complete!</translation>
+        <translation>Dependency graph generation complete!</translation>
     </message>
     <message>
         <source>无法生成分析报告。</source>
-        <translation>Unable to generate analysis report.</translation>
+        <translation>Could not generate analysis report.</translation>
     </message>
     <message>
         <source>完整分析报告生成完毕！</source>
-        <translation>Full Analysis Report generated!</translation>
+        <translation>Full analysis report generated!</translation>
     </message>
     <message>
         <source>缺失翻译扫描完成！</source>
-        <translation>Missing Translation scan complete!</translation>
+        <translation>Missing translations scan complete!</translation>
+    </message>
+    <message>
+        <source>准备就绪</source>
+        <translation>Ready</translation>
     </message>
     <message>
         <source>诊断报告 (排序问题)</source>
         <translation>Diagnostic Report (Sorting Issues)</translation>
     </message>
     <message>
-        <source>应排在 '{provider}' 之后</source>
-        <translation>Should be placed after '{provider}'</translation>
+        <source>应排在 &apos;{provider}&apos; 之后 (在: {separator})</source>
+        <translation>Should be placed after &apos;{provider}&apos; (in: {separator})</translation>
+    </message>
+    <message>
+        <source>无分隔符</source>
+        <translation>None_separator</translation>
+    </message>
+    <message>
+        <source>根据您的选择和最小破坏原则，当前顺序已是最佳。</source>
+        <translation>Based on your selection and the principle of least disruption, the current order is optimal.</translation>
     </message>
     <message>
         <source>诊断报告 (依赖缺失)</source>
@@ -677,11 +632,11 @@
     </message>
     <message>
         <source>循环依赖打破点</source>
-        <translation>Cyclic Dependency Breakpoint</translation>
+        <translation>Cycle Breakpoints</translation>
     </message>
     <message>
         <source>未发现任何符合条件的缺失翻译。</source>
-        <translation>No eligible missing translations found.</translation>
+        <translation>No missing translations found matching the criteria.</translation>
     </message>
     <message>
         <source>输入无效</source>
@@ -693,31 +648,31 @@
     </message>
     <message>
         <source>输入为空</source>
-        <translation>Empty Input</translation>
+        <translation>Input Empty</translation>
     </message>
     <message>
         <source>请输入您想要查找的翻译语言。</source>
-        <translation>Please enter the translation language you want to search for.</translation>
+        <translation>Please enter the language for the translations you want to find.</translation>
     </message>
     <message>
         <source>未选择</source>
-        <translation>No Selection</translation>
+        <translation>Nothing Selected</translation>
     </message>
     <message>
         <source>请先在列表中选择要删除的缓存条目。</source>
-        <translation>Please select a cache entry to delete from the list first.</translation>
+        <translation>Please select cache entries from the list to delete.</translation>
     </message>
     <message>
         <source>确认清理</source>
-        <translation>Confirm Clean-up</translation>
+        <translation>Confirm Clear</translation>
     </message>
     <message>
         <source>您确定要删除当前游戏的所有已缓存数据吗？此操作不可逆！</source>
-        <translation>Are you sure you want to delete all cached data for the current game? This action is irreversible!</translation>
+        <translation>Are you sure you want to delete all cached data for the current game? This action cannot be undone!</translation>
     </message>
     <message>
         <source>[INFO] 分析进行中，刷新请求已忽略。</source>
-        <translation>[Info] Analysis is in progress, refresh request ignored.</translation>
+        <translation>[INFO] Analysis in progress, refresh request ignored.</translation>
     </message>
     <message>
         <source>[UI] 用户请求停止操作。</source>
@@ -729,7 +684,7 @@
     </message>
     <message>
         <source>修正选中模组的顺序...</source>
-        <translation>Correcting the order of selected mods...</translation>
+        <translation>Correct order of selected mods...</translation>
     </message>
     <message>
         <source>复制 Nexus ID ({count})</source>
@@ -749,7 +704,7 @@
     </message>
     <message>
         <source>无法执行修正，请先生成一份完整的分析报告。</source>
-        <translation>Unable to perform correction. Please generate a full analysis report first.</translation>
+        <translation>Cannot apply correction. Please generate a full analysis report first.</translation>
     </message>
     <message>
         <source>选择无效</source>
@@ -757,31 +712,15 @@
     </message>
     <message>
         <source>请从“诊断报告 (排序问题)”中选择一个或多个具体的问题项进行修正。</source>
-        <translation>Please select one or more specific issues from the "Diagnostic Report (Sorting Issues)" to correct.</translation>
-    </message>
-    <message>
-        <source>无法从您的选择中识别出要修正的问题。</source>
-        <translation>Unable to identify the issue to correct from your selection.</translation>
-    </message>
-    <message>
-        <source>修正排序时达到最大迭代次数，可能存在无法解决的冲突。</source>
-        <translation>Maximum iterations reached during sorting. There may be unresolved conflicts.</translation>
+        <translation>Please select one or more specific issues from the &quot;Diagnostic Report (Sorting Issues)&quot; to correct.</translation>
     </message>
     <message>
         <source>无需调整</source>
         <translation>No Adjustment Needed</translation>
     </message>
     <message>
-        <source>根据您的选择，当前顺序已满足要求。</source>
-        <translation>Based on your selection, the current order already meets the requirements.</translation>
-    </message>
-    <message>
         <source>开始修正模组加载顺序...</source>
         <translation>Starting to correct mod load order...</translation>
-    </message>
-    <message>
-        <source>[CRITICAL] 修正排序时出错: {e}</source>
-        <translation>[CRITICAL] Error correcting sort order: {e}</translation>
     </message>
     <message>
         <source>操作完成</source>
@@ -789,7 +728,7 @@
     </message>
     <message>
         <source>模组顺序已修正。建议重新运行分析以验证结果。</source>
-        <translation>Mod order has been corrected. It is recommended to re-run the analysis to verify the results.</translation>
+        <translation>Mod order has been corrected. It is recommended to run the analysis again to verify the results.</translation>
     </message>
     <message>
         <source>错误</source>
@@ -797,7 +736,7 @@
     </message>
     <message>
         <source>修正排序时发生错误，请查看日志。</source>
-        <translation>An error occurred during sorting correction. Please check the log.</translation>
+        <translation>An error occurred while correcting the sort order. Please check the log.</translation>
     </message>
     <message>
         <source>发生错误！</source>
@@ -805,23 +744,85 @@
     </message>
     <message>
         <source>发生错误</source>
-        <translation>An error occurred</translation>
-    </message>
-    <message>
-        <source>警告：工作线程未能正常退出。</source>
-        <translation>Warning: The worker thread did not exit properly.</translation>
+        <translation>Error</translation>
     </message>
     <message>
         <source>浏览器准备就绪，可以开始分析。</source>
-        <translation>Browser is ready, you can start the analysis.</translation>
+        <translation>Browser is ready. You can start the analysis.</translation>
     </message>
     <message>
         <source>浏览器初始化失败</source>
-        <translation>Browser initialization failed</translation>
+        <translation>Browser Initialization Failed</translation>
     </message>
     <message>
-        <source>浏览器初始化失败，无法执行任何分析。请检查Playwright是否被杀毒软件拦截。</source>
-        <translation>Browser initialization failed, no analysis can be performed. Please check if Playwright is being blocked by antivirus software.</translation>
+        <source>浏览器已重启，正在重新验证状态...</source>
+        <translation>Browser has restarted, re-validating status...</translation>
+    </message>
+    <message>
+        <source>登录状态: &lt;b style=&apos;color:green;&apos;&gt;已登录&lt;/b&gt;</source>
+        <translation>Login Status: &lt;b style=&apos;color:green;&apos;&gt;Logged In&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>登录状态: &lt;b style=&apos;color:orange;&apos;&gt;未登录&lt;/b&gt; (部分功能受限)</source>
+        <translation>Login Status: &lt;b style=&apos;color:orange;&apos;&gt;Not Logged In&lt;/b&gt; (some features are limited)</translation>
+    </message>
+    <message>
+        <source>登录流程结束</source>
+        <translation>Login Process Finished</translation>
+    </message>
+    <message>
+        <source>登录浏览器已关闭。现在将重新初始化分析浏览器并检查最终登录状态...</source>
+        <translation>The login browser has been closed. Re-initializing the analysis browser and checking the final login status...</translation>
+    </message>
+    <message>
+        <source>正在使用新Cookies重启浏览器...</source>
+        <translation>Restarting browser with new cookies...</translation>
+    </message>
+    <message>
+        <source>登录失败</source>
+        <translation>Login Failed</translation>
+    </message>
+    <message>
+        <source>登录流程中发生错误，请查看日志获取详细信息。</source>
+        <translation>An error occurred during the login process. Please check the log for details.</translation>
+    </message>
+    <message>
+        <source>设置已保存</source>
+        <translation>Settings Saved</translation>
+    </message>
+    <message>
+        <source>设置已成功保存并应用。浏览器实例将自动重启以应用新设置。</source>
+        <translation>Settings have been successfully saved and applied. The browser instance will restart automatically to apply the new settings.</translation>
+    </message>
+    <message>
+        <source>保存失败</source>
+        <translation>Save Failed</translation>
+    </message>
+    <message>
+        <source>保存设置失败，请查看日志。</source>
+        <translation>Failed to save settings. Please check the log.</translation>
+    </message>
+    <message>
+        <source>内容屏蔽提示</source>
+        <translation>Content Blocking Notice</translation>
+    </message>
+    <message>
+        <source>模组 {mod_id} 因&lt;b&gt;成人内容&lt;/b&gt;被屏蔽。</source>
+        <translation>Mod {mod_id} is blocked due to &lt;b&gt;adult content&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>如果您已登录，这通常意味着您需要在Nexus Mods网站上手动开启成人内容显示选项。</source>
+        <translation>If you are logged in, this usually means you need to manually enable adult content viewing options on the Nexus Mods website.</translation>
+    </message>
+    <message>
+        <source>抓取超时警告</source>
+        <translation>Fetch Timeout Warning</translation>
+    </message>
+    <message>
+        <source>抓取模组 {mod_id} 信息时发生超时，这很可能是因为Cloudflare人机验证。
+如果问题持续出现，强烈建议您在“设置”标签页中&lt;b&gt;关闭“无头模式”&lt;/b&gt;（即切换为有头模式）并重试。</source>
+        <translation>A timeout occurred while fetching information for mod {mod_id}. This is likely due to Cloudflare&apos;s human verification.
+If this problem persists, it is strongly recommended that you &lt;b&gt;disable &quot;Headless Mode&quot;&lt;/b&gt; (i.e., switch to headed mode) in the Settings tab and try again.</translation>
     </message>
     <message>
         <source>无图像</source>
@@ -832,27 +833,98 @@
         <translation>There is no dependency graph to save.</translation>
     </message>
     <message>
+        <source>保存 SVG 图像</source>
+        <translation>Save SVG Image</translation>
+    </message>
+    <message>
+        <source>关系图已保存到: {path}</source>
+        <translation>Graph saved to: {path}</translation>
+    </message>
+    <message>
         <source>保存文件时出错: {error}</source>
         <translation>Error saving file: {error}</translation>
     </message>
     <message>
         <source>没有可保存的 .dot 源数据。</source>
-        <translation>There is no .dot source data to save.</translation>
+        <translation>No .dot source data to save.</translation>
+    </message>
+    <message>
+        <source>导出 .dot 文件</source>
+        <translation>Export .dot File</translation>
     </message>
     <message>
         <source>.dot 源文件已保存到: {path}</source>
         <translation>.dot source file saved to: {path}</translation>
     </message>
     <message>
-        <source>关系图已保存到: {path}</source>
-        <translation>Graph saved to: {path}</translation>
+        <source>请先生成一份完整的分析报告。</source>
+        <translation>Please generate a complete analysis report first.</translation>
+    </message>
+    <message>
+        <source>保存HTML报告</source>
+        <translation>Save HTML Report</translation>
+    </message>
+    <message>
+        <source>报告已成功导出到: {path}</source>
+        <translation>Report successfully exported to: {path}</translation>
+    </message>
+    <message>
+        <source>导出HTML时出错: {error}</source>
+        <translation>Error exporting HTML: {error}</translation>
+    </message>
+    <message>
+        <source>正在关闭插件窗口...</source>
+        <translation>Closing plugin window...</translation>
+    </message>
+    <message>
+        <source>正在等待后台线程关闭... (最多5秒)</source>
+        <translation>Waiting for background thread to close... (max 5 seconds)</translation>
+    </message>
+    <message>
+        <source>警告: 后台线程未能正常关闭。浏览器进程可能需要手动结束。</source>
+        <translation>Warning: Background thread did not close properly. The browser process may need to be terminated manually.</translation>
+    </message>
+    <message>
+        <source>后台线程已成功关闭。</source>
+        <translation>Background thread closed successfully.</translation>
+    </message>
+</context>
+<context>
+    <name>CorrectionDialog</name>
+    <message>
+        <source>确认模组顺序修正</source>
+        <translation>Confirm Mod Order Correction</translation>
+    </message>
+    <message>
+        <source>原始顺序 (黄色:选中 / 蓝色:受影响)</source>
+        <translation>Original Order (Yellow: Selected / Blue: Affected)</translation>
+    </message>
+    <message>
+        <source>顺序</source>
+        <translation>Order</translation>
+    </message>
+    <message>
+        <source>模组/分隔符名称</source>
+        <translation>Mod/Separator Name</translation>
+    </message>
+    <message>
+        <source>建议顺序 (绿色:选中 / 淡绿:受影响)</source>
+        <translation>Suggested Order (Green: Selected / Light Green: Affected)</translation>
+    </message>
+    <message>
+        <source>应用更改</source>
+        <translation>Apply Changes</translation>
+    </message>
+    <message>
+        <source>取消</source>
+        <translation>Cancel</translation>
     </message>
 </context>
 <context>
     <name>ModDepAnalyzerPlugin</name>
     <message>
         <source>分析Nexus Mods依赖关系并为MO2生成排序建议的工具。</source>
-        <translation>A tool to analyze Nexus Mods dependencies and generate load order suggestions for MO2.</translation>
+        <translation>A tool to analyze Nexus Mods dependencies and generate sorting suggestions for MO2.</translation>
     </message>
     <message>
         <source>Nexus Mods 依赖分析器</source>
@@ -860,49 +932,206 @@
     </message>
     <message>
         <source>启动依赖分析工具</source>
-        <translation>Launch Dependency Analyzer Tool</translation>
-    </message>
-    <message>
-        <source>缓存有效期(天)，0为永不过期</source>
-        <translation>Cache validity period (days), 0 for never expires</translation>
-    </message>
-    <message>
-        <source>网络请求超时(毫秒)</source>
-        <translation>Network request timeout (ms)</translation>
-    </message>
-    <message>
-        <source>依赖树最大递归深度</source>
-        <translation>Maximum recursion depth for dependency tree</translation>
-    </message>
-    <message>
-        <source>每次网络请求的延迟(毫秒)</source>
-        <translation>Delay per network request (ms)</translation>
-    </message>
-    <message>
-        <source>为完整分析额外抓取的未安装模组层数</source>
-        <translation>Number of tiers of uninstalled mods to fetch for full analysis</translation>
-    </message>
-    <message>
-        <source>网络请求失败后的最大重试次数</source>
-        <translation>Maximum retries after network request failure</translation>
-    </message>
-    <message>
-        <source>重试前的等待间隔(毫秒)</source>
-        <translation>Wait interval before retry (ms)</translation>
-    </message>
-    <message>
-        <source>并发抓取线程数 (当前版本未使用)</source>
-        <translation>Concurrent fetch threads (not used in current version)</translation>
+        <translation>Launch Dependency Analyzer</translation>
     </message>
     <message>
         <source>缺少依赖项</source>
         <translation>Missing Dependencies</translation>
     </message>
     <message>
-        <source>此插件必需的库 (lxml, Playwright, pytomlpp, orjson, graphviz) 未能加载。
+        <source>此插件必需的库 (lxml, Patchright, pytomlpp, orjson, graphviz) 未能加载。
 请仔细阅读插件说明（README），并按照指示手动安装所有必需的依赖项。</source>
-        <translation>Required libraries for this plugin (lxml, Playwright, pytomlpp, orjson, graphviz) failed to load.
-Please read the plugin's instructions (README) carefully and manually install all required dependencies as instructed.</translation>
+        <translation>Required libraries for this plugin (lxml, Patchright, pytomlpp, orjson, graphviz) failed to load.
+Please read the plugin&apos;s README carefully and follow the instructions to manually install all necessary dependencies.</translation>
+    </message>
+</context>
+<context>
+    <name>PlaywrightManager</name>
+    <message>
+        <source>正在启动Playwright服务...</source>
+        <translation>Starting Playwright service...</translation>
+    </message>
+    <message>
+        <source>Playwright服务已启动。</source>
+        <translation>Playwright service started.</translation>
+    </message>
+    <message>
+        <source>启动Playwright服务失败: {error}</source>
+        <translation>Failed to start Playwright service: {error}</translation>
+    </message>
+    <message>
+        <source>Playwright服务已停止。</source>
+        <translation>Playwright service stopped.</translation>
+    </message>
+    <message>
+        <source>停止Playwright服务时出错: {error}</source>
+        <translation>Error stopping Playwright service: {error}</translation>
+    </message>
+    <message>
+        <source>主浏览器上下文已关闭。</source>
+        <translation>Main browser context closed.</translation>
+    </message>
+    <message>
+        <source>关闭主浏览器上下文时出错: {error}</source>
+        <translation>Error closing main browser context: {error}</translation>
+    </message>
+    <message>
+        <source>Playwright服务未运行，无法获取页面。</source>
+        <translation>Playwright service is not running, cannot get page.</translation>
+    </message>
+    <message>
+        <source>有头</source>
+        <translation>Headed</translation>
+    </message>
+    <message>
+        <source>无头</source>
+        <translation>Headless</translation>
+    </message>
+    <message>
+        <source>正在初始化主浏览器上下文 ({mode})...</source>
+        <translation>Initializing main browser context ({mode})...</translation>
+    </message>
+    <message>
+        <source>正在设置网络请求规则以优化速度...</source>
+        <translation>Setting up network request rules to optimize speed...</translation>
+    </message>
+    <message>
+        <source>初始化主浏览器上下文时发生严重错误: {error}</source>
+        <translation>A critical error occurred while initializing the main browser context: {error}</translation>
+    </message>
+    <message>
+        <source>Playwright初始化失败，可能是相关文件损坏或被杀毒软件阻止。</source>
+        <translation>Playwright initialization failed. The relevant files may be corrupted or blocked by antivirus software.</translation>
+    </message>
+    <message>
+        <source>Playwright服务未运行，无法登录。</source>
+        <translation>Playwright service is not running, cannot log in.</translation>
+    </message>
+    <message>
+        <source>正在启动一个独立的浏览器用于登录...</source>
+        <translation>Launching a separate browser for login...</translation>
+    </message>
+    <message>
+        <source>请在弹出的浏览器窗口中登录Nexus Mods。</source>
+        <translation>Please log in to Nexus Mods in the browser window that pops up.</translation>
+    </message>
+    <message>
+        <source>登录成功后，请手动关闭该浏览器窗口以继续。</source>
+        <translation>After successful login, please manually close the browser window to continue.</translation>
+    </message>
+    <message>
+        <source>您可以点击“停止”按钮来随时中止登录。</source>
+        <translation>You can click the &quot;Stop&quot; button to abort the login at any time.</translation>
+    </message>
+    <message>
+        <source>登录浏览器已由用户关闭。</source>
+        <translation>Login browser closed by user.</translation>
+    </message>
+    <message>
+        <source>登录操作已被用户中止。</source>
+        <translation>Login process aborted by user.</translation>
+    </message>
+    <message>
+        <source>登录流程结束。</source>
+        <translation>Login process finished.</translation>
+    </message>
+    <message>
+        <source>登录流程中发生错误: {error}</source>
+        <translation>An error occurred during the login process: {error}</translation>
+    </message>
+    <message>
+        <source>登录失败，请检查日志。</source>
+        <translation>Login failed, please check the log.</translation>
+    </message>
+    <message>
+        <source>检测到设置变更，正在重启主浏览器...</source>
+        <translation>Settings change detected, restarting main browser...</translation>
+    </message>
+</context>
+<context>
+    <name>RulesManagerDialog</name>
+    <message>
+        <source>规则管理器</source>
+        <translation>Rules Manager</translation>
+    </message>
+    <message>
+        <source>忽略列表 (将这些ID视为已安装)</source>
+        <translation>Ignore List (Treat these IDs as installed)</translation>
+    </message>
+    <message>
+        <source>添加</source>
+        <translation>Add</translation>
+    </message>
+    <message>
+        <source>删除</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>忽略其前置列表 (将忽略这些ID的所有前置)</source>
+        <translation>Ignore Requirements List (Ignore all requirements for these IDs)</translation>
+    </message>
+    <message>
+        <source>替换列表 (&apos;被替换的ID&apos; -&gt; &apos;替换为的ID&apos;)</source>
+        <translation>Replacement List (&apos;Replaced ID&apos; -&gt; &apos;Replacement ID&apos;)</translation>
+    </message>
+    <message>
+        <source>被替换的ID</source>
+        <translation>Replaced ID</translation>
+    </message>
+    <message>
+        <source>替换为的ID</source>
+        <translation>Replacement ID</translation>
+    </message>
+    <message>
+        <source>添加忽略ID</source>
+        <translation>Add Ignore ID</translation>
+    </message>
+    <message>
+        <source>添加前置忽略ID</source>
+        <translation>Add Ignore Requirement ID</translation>
+    </message>
+    <message>
+        <source>请输入要添加的Nexus Mod ID:</source>
+        <translation>Please enter the Nexus Mod ID to add:</translation>
+    </message>
+    <message>
+        <source>输入无效</source>
+        <translation>Invalid Input</translation>
+    </message>
+    <message>
+        <source>ID必须为纯数字。</source>
+        <translation>ID must be numeric.</translation>
+    </message>
+    <message>
+        <source>添加替换规则</source>
+        <translation>Add Replacement Rule</translation>
+    </message>
+    <message>
+        <source>第一步: 输入被替换的模组ID:</source>
+        <translation>Step 1: Enter the ID of the mod to be replaced:</translation>
+    </message>
+    <message>
+        <source>第二步: 输入用于替换的模组ID:</source>
+        <translation>Step 2: Enter the ID of the replacement mod:</translation>
+    </message>
+</context>
+<context>
+    <name>SearchBar</name>
+    <message>
+        <source>输入ID、名称、备注等...</source>
+        <translation>Enter ID, name, notes, etc...</translation>
+    </message>
+    <message>
+        <source>下一个</source>
+        <translation>Next</translation>
+    </message>
+    <message>
+        <source>关闭 (Esc)</source>
+        <translation>Close (Esc)</translation>
+    </message>
+    <message>
+        <source>搜索:</source>
+        <translation>Search:</translation>
     </message>
 </context>
 </TS>
