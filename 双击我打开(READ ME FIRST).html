@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Mods 依赖分析器 - README</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chosen Palette: Calm Harmony (Stone/Slate neutrals with soft blue accents) -->
+    <!-- Application Structure Plan: A single-page app with a top navigation bar and a language toggle. Content is divided into logical sections (Overview, Features, Installation, Usage, Hotkeys) that users can jump to. This structure is more engaging and navigable than a linear markdown file. The language toggle provides immediate utility for the bilingual source content. -->
+    <!-- Visualization & Content Choices: Report Info: Features list -> Goal: Inform/Organize -> Viz: Interactive cards (HTML/CSS grid) -> Interaction: Click to show/hide details -> Justification: Breaks down complex features into digestible, user-explorable chunks. Report Info: Installation/Usage steps -> Goal: Organize -> Viz: Styled step-by-step list -> Interaction: Copy-to-clipboard for paths -> Justification: Improves usability over plain text. Report Info: Hotkeys -> Goal: Inform -> Viz: Styled <kbd> elements -> Justification: Clear visual representation for key presses. Library/Method: Vanilla JS for all interactions, Tailwind for styling. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            /* slate-50 */
+            color: #1e293b;
+            /* slate-800 */
+        }
+
+        .nav-link {
+            transition: color 0.3s, border-color 0.3s;
+        }
+
+        .feature-card {
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        .kbd-style {
+            background-color: #e2e8f0;
+            /* slate-200 */
+            color: #1e293b;
+            /* slate-800 */
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            border: 1px solid #cbd5e1;
+            /* slate-300 */
+            box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body class="bg-slate-50 text-slate-800">
+
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900" data-translate-key="header.title">Nexus Mods
+                    依赖分析器</h1>
+                <div class="flex items-center space-x-4">
+                    <nav class="hidden md:flex space-x-6">
+                        <a href="#features"
+                            class="nav-link text-slate-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-600"
+                            data-translate-key="nav.features">功能介绍</a>
+                        <a href="#installation"
+                            class="nav-link text-slate-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-600"
+                            data-translate-key="nav.installation">安装指南</a>
+                        <a href="#usage"
+                            class="nav-link text-slate-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-600"
+                            data-translate-key="nav.usage">使用方法</a>
+                        <a href="#hotkeys"
+                            class="nav-link text-slate-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-600"
+                            data-translate-key="nav.hotkeys">快捷键</a>
+                    </nav>
+                    <button id="lang-toggle"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">English</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+
+        <section id="overview" class="text-center py-12 sm:py-16">
+            <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900"
+                data-translate-key="overview.title">简介</h2>
+            <p class="mt-4 max-w-2xl mx-auto text-lg text-slate-600" data-translate-key="overview.description">这是一个为 Mod
+                Organizer 2 (MO2) 开发的功能强大的插件，旨在帮助用户管理复杂的模组(Mod)依赖关系。它通过直接从 Nexus Mods
+                网站抓取数据，为您提供最准确的依赖信息，并基于这些信息提供排序建议、问题诊断等功能。本插件已捆绑所有必需的 Python 库，您无需手动安装它们。<strong>注意：在使用自动排序功能前必须进行备份！！！！！！！！</strong></p>
+        </section>
+
+        <section id="features" class="py-12 sm:py-16">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold tracking-tight text-slate-900" data-translate-key="features.title">主要功能
+                </h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                <div class="feature-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center mb-4">
+                        <span class="text-3xl mr-4">🌳</span>
+                        <h3 class="text-xl font-semibold" data-translate-key="features.card1.title">单个模组依赖树分析</h3>
+                    </div>
+                    <p class="text-slate-600" data-translate-key="features.card1.description">
+                        可视化地展示任意单个模组的所有前置依赖，并清晰地标明其满足状态（已安装、缺失、被替代等）。</p>
+                </div>
+
+                <div class="feature-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center mb-4">
+                        <span class="text-3xl mr-4">📊</span>
+                        <h3 class="text-xl font-semibold" data-translate-key="features.card2.title">完整加载顺序分析</h3>
+                    </div>
+                    <p class="text-slate-600" data-translate-key="features.card2.description">扫描您当前的整个模组列表，与 Nexus Mods
+                        上的依赖关系进行比对，生成一份详细的报告，包括加载顺序问题、缺失的依赖和建议的排序，并支持一键修正。</p>
+                </div>
+
+                <div class="feature-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center mb-4">
+                        <span class="text-3xl mr-4">🌐</span>
+                        <h3 class="text-xl font-semibold" data-translate-key="features.card3.title">查找缺失的翻译</h3>
+                    </div>
+                    <p class="text-slate-600" data-translate-key="features.card3.description">
+                        自动扫描您所有已安装的模组，并根据您指定的语言（如：Mandarin），在 Nexus Mods 上查找可用的、但您尚未安装的社区翻译版本。</p>
+                </div>
+
+                <div class="feature-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center mb-4">
+                        <span class="text-3xl mr-4">🎨</span>
+                        <h3 class="text-xl font-semibold" data-translate-key="features.card4.title">可视化关系图</h3>
+                    </div>
+                    <p class="text-slate-600" data-translate-key="features.card4.description">
+                        为单个模组生成直观的依赖关系图，让复杂的依赖关系一目了然。(需要单独安装 Graphviz)</p>
+                </div>
+
+                <div class="feature-card bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center mb-4">
+                        <span class="text-3xl mr-4">🛠️</span>
+                        <h3 class="text-xl font-semibold" data-translate-key="features.card5.title">强大的辅助功能</h3>
+                    </div>
+                    <p class="text-slate-600" data-translate-key="features.card5.description">
+                        所有视图均支持快速搜索和高亮，中键点击可在浏览器打开页面，并提供方便的缓存和规则管理。</p>
+                </div>
+
+            </div>
+        </section>
+
+        <section id="installation" class="py-12 sm:py-16 bg-slate-100 rounded-lg">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold tracking-tight text-slate-900" data-translate-key="installation.title">
+                    安装指南</h2>
+            </div>
+            <div class="max-w-4xl mx-auto space-y-8">
+                <div class="flex items-start">
+                    <div
+                        class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-500 text-white font-bold rounded-full text-xl">
+                        1</div>
+                    <div class="ml-6">
+                        <h3 class="text-xl font-semibold" data-translate-key="installation.step1.title">放置插件</h3>
+                        <p class="mt-2 text-slate-600" data-translate-key="installation.step1.description">将插件的整个
+                            `dep_analysis` 文件夹完整地复制到您的 MO2 安装目录下的 `plugins` 文件夹内。</p>
+                        <p class="mt-2 text-sm text-slate-500" data-translate-key="installation.step1.path_note">示例路径:
+                            <code class="bg-slate-200 p-1 rounded">D:\Games\SkyrimSE\plugins\dep_analysis</code></p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <div
+                        class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-500 text-white font-bold rounded-full text-xl">
+                        2</div>
+                    <div class="ml-6">
+                        <h3 class="text-xl font-semibold" data-translate-key="installation.step2.title">放置翻译文件 (可选)</h3>
+                        <p class="mt-2 text-slate-600" data-translate-key="installation.step2.description">如果插件包内有
+                            `translations` 文件夹，请将其中的 `.qm` 文件复制到您的 MO2 安装目录下的 `translations` 文件夹内。这主要为非中文用户提供界面翻译。</p>
+                        <p class="mt-2 text-sm text-slate-500" data-translate-key="installation.step2.path_note">示例路径:
+                            <code class="bg-slate-200 p-1 rounded">D:\Games\SkyrimSE\translations</code></p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <div
+                        class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-500 text-white font-bold rounded-full text-xl">
+                        3</div>
+                    <div class="ml-6">
+                        <h3 class="text-xl font-semibold" data-translate-key="installation.step3.title">安装 Graphviz (可选)
+                        </h3>
+                        <p class="mt-2 text-slate-600" data-translate-key="installation.step3.description">
+                            如果您想使用“生成关系图”功能，您需要单独安装 Graphviz。如果用不到此功能，则可以跳过此步。安装时请务必勾选 "Add Graphviz to the system PATH"
+                            选项。</p>
+                        <a href="https://graphviz.org/download/" target="_blank"
+                            class="mt-2 inline-block text-blue-600 hover:text-blue-800"
+                            data-translate-key="installation.step3.link">前往 Graphviz 官网下载 →</a>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <div
+                        class="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-500 text-white font-bold rounded-full text-xl">
+                        4</div>
+                    <div class="ml-6">
+                        <h3 class="text-xl font-semibold" data-translate-key="installation.step4.title">重启 MO2</h3>
+                        <p class="mt-2 text-slate-600" data-translate-key="installation.step4.description">
+                            完成以上步骤后，<strong>完全关闭并重新启动 Mod Organizer 2</strong>。您应该能在工具栏 (一把扳手图标) 的下拉菜单中找到 "Nexus Mods 依赖分析器"。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="usage" class="py-12 sm:py-16">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold tracking-tight text-slate-900" data-translate-key="usage.title">使用方法</h2>
+            </div>
+            <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item1.title">启动插件</h3>
+                    <p class="text-slate-600" data-translate-key="usage.item1.description">从 MO2 工具栏启动 "Nexus Mods
+                        依赖分析器"。</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item2.title">依赖树分析</h3>
+                    <p class="text-slate-600" data-translate-key="usage.item2.description">在第一个标签页中，输入一个 Nexus Mod ID
+                        (纯数字)，点击 "分析依赖树" 或 "生成关系图"。</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item3.title">完整分析</h3>
+                    <p class="text-slate-600" data-translate-key="usage.item3.description">在 "完整分析" 标签页中，点击
+                        "生成完整分析报告"。报告生成后，右键点击排序问题项可进行一键修正。</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-3" data-translate-key="usage.item4.title">查找翻译</h3>
+                    <p class="text-slate-600" data-translate-key="usage.item4.description">在 "查找缺失的翻译" 标签页中，输入目标语言的英文关键词
+                        (例如 Mandarin, German 等)，点击 "开始查找"。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="hotkeys" class="py-12 sm:py-16 bg-slate-100 rounded-lg">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold tracking-tight text-slate-900" data-translate-key="hotkeys.title">快捷键</h2>
+            </div>
+            <div class="max-w-4xl mx-auto space-y-4">
+                <div class="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
+                    <span class="text-slate-600"
+                        data-translate-key="hotkeys.item1.description">在当前活动的标签页中，打开/关闭搜索栏。</span>
+                    <span class="kbd-style">Ctrl + F</span>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
+                    <span class="text-slate-600"
+                        data-translate-key="hotkeys.item2.description">当搜索栏打开时，按下此键可快速关闭。</span>
+                    <span class="kbd-style">Esc</span>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
+                    <span class="text-slate-600"
+                        data-translate-key="hotkeys.item3.description">在任何视图中的模组条目上点击，可在浏览器中快速打开该模组的 Nexus Mods
+                        页面。</span>
+                    <span class="kbd-style" data-translate-key="hotkeys.item3.key">鼠标中键点击</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-slate-500">
+            <p data-translate-key="footer.text">Nexus Mods 依赖分析器 README</p>
+        </div>
+    </footer>
+
+    <script>
+        const translations = {
+            zh: {
+                header: {
+                    title: "Nexus Mods 依赖分析器"
+                },
+                nav: {
+                    features: "功能介绍",
+                    installation: "安装指南",
+                    usage: "使用方法",
+                    hotkeys: "快捷键"
+                },
+                overview: {
+                    title: "简介",
+                    description: "这是一个为 Mod Organizer 2 (MO2) 开发的功能强大的插件，旨在帮助用户管理复杂的模组(Mod)依赖关系。它通过直接从 Nexus Mods 网站抓取数据，为您提供最准确的依赖信息，并基于这些信息提供排序建议、问题诊断等功能。本插件已捆绑所有必需的 Python 库，您无需手动安装它们。</p><strong style=\"color: red;\">注意：在使用右键辅助排序功能前必须进行备份！！！！！！！！</strong>"
+                },
+                features: {
+                    title: "主要功能",
+                    card1: {
+                        title: "单个模组依赖树分析",
+                        description: "可视化地展示任意单个模组的所有前置依赖，并清晰地标明其满足状态（已安装、缺失、被替代等）。"
+                    },
+                    card2: {
+                        title: "完整加载顺序分析",
+                        description: "扫描您当前的整个模组列表，与 Nexus Mods 上的依赖关系进行比对，生成一份详细的报告，包括加载顺序问题、缺失的依赖和建议的排序，并支持一键修正。<strong style=\"color: red;\">注意：在使用右键辅助排序功能前必须进行备份！！！！！！！！</strong>"
+                    },
+                    card3: {
+                        title: "查找缺失的翻译",
+                        description: "自动扫描您所有已安装的模组，并根据您指定的语言（如：Mandarin），在 Nexus Mods 上查找可用的、但您尚未安装的社区翻译版本。"
+                    },
+                    card4: {
+                        title: "可视化关系图",
+                        description: "为单个模组生成直观的依赖关系图，让复杂的依赖关系一目了然。(需要单独安装 Graphviz)"
+                    },
+                    card5: {
+                        title: "强大的辅助功能",
+                        description: "所有视图均支持快速搜索和高亮，中键点击可在浏览器打开页面，并提供方便的缓存和规则管理。"
+                    }
+                },
+                installation: {
+                    title: "安装指南",
+                    step1: {
+                        title: "放置插件",
+                        description: "将插件的整个 `dep_analysis` 文件夹完整地复制到您的 MO2 安装目录下的 `plugins` 文件夹内。",
+                        path_note: "示例路径: <code class='bg-slate-200 p-1 rounded'>D:\\Games\\SkyrimSE\\plugins\\dep_analysis</code>"
+                    },
+                    step2: {
+                        title: "放置翻译文件 (可选)",
+                        description: "如果插件包内有 `translations` 文件夹，请将其中的 `.qm` 文件复制到您的 MO2 安装目录下的 `translations` 文件夹内。这主要为非中文用户提供界面翻译。",
+                        path_note: "示例路径: <code class='bg-slate-200 p-1 rounded'>D:\\Games\\SkyrimSE\\translations</code>"
+                    },
+                    step3: {
+                        title: "安装 Graphviz (可选)",
+                        description: "如果您想使用“生成关系图”功能，您需要单独安装 Graphviz。如果用不到此功能，则可以跳过此步。安装时请务必勾选 \"Add Graphviz to the system PATH for all users\" 选项。",
+                        link: "前往 Graphviz 官网下载 →"
+                    },
+                    step4: {
+                        title: "重启 MO2",
+                        description: "完成以上步骤后，<strong>完全关闭并重新启动 Mod Organizer 2</strong>。您应该能在工具栏 (一把扳手图标) 的下拉菜单中找到 \"Nexus Mods 依赖分析器\"。"
+                    }
+                },
+                usage: {
+                    title: "使用方法",
+                    item1: {
+                        title: "启动插件",
+                        description: "从 MO2 工具栏启动 \"Nexus Mods 依赖分析器\"。"
+                    },
+                    item2: {
+                        title: "依赖树分析",
+                        description: "在第一个标签页中，输入一个 Nexus Mod ID (纯数字)，点击 \"分析依赖树\" 或 \"生成关系图\"。"
+                    },
+                    item3: {
+                        title: "完整分析",
+                        description: "在 \"完整分析\" 标签页中，点击 \"生成完整分析报告\"。报告生成后，右键点击排序问题项可进行一键修正。"
+                    },
+                    item4: {
+                        title: "查找翻译",
+                        description: "在 \"查找缺失的翻译\" 标签页中，输入目标语言的英文关键词 (例如 Mandarin, German 等)，点击 \"开始查找\"。"
+                    }
+                },
+                hotkeys: {
+                    title: "快捷键",
+                    item1: {
+                        description: "在当前活动的标签页中，打开/关闭搜索栏。"
+                    },
+                    item2: {
+                        description: "当搜索栏打开时，按下此键可快速关闭。"
+                    },
+                    item3: {
+                        description: "在任何视图中的模组条目上点击，可在浏览器中快速打开该模组的 Nexus Mods 页面。",
+                        key: "鼠标中键点击"
+                    }
+                },
+                footer: {
+                    text: "Nexus Mods 依赖分析器 README"
+                }
+            },
+            en: {
+                header: {
+                    title: "Nexus Mods Dependency Analyzer"
+                },
+                nav: {
+                    features: "Features",
+                    installation: "Installation",
+                    usage: "Usage",
+                    hotkeys: "Hotkeys"
+                },
+                overview: {
+                    title: "Introduction",
+                    description: "This is a powerful plugin for Mod Organizer 2 (MO2) designed to help users manage complex mod dependencies. It provides the most accurate dependency information by fetching data directly from the Nexus Mods website and offers sorting suggestions and problem diagnosis based on that information. This plugin comes bundled with all necessary Python libraries, so you do not need to install them manually.</p><strong style=\"color: red;\">WARNNING：YOU MUST BACKUP YOUR MOD ORDER BEFORE USE THIS PLUGIN</strong>"
+                },
+                features: {
+                    title: "Main Features",
+                    card1: {
+                        title: "Single Mod Dependency Tree Analysis",
+                        description: "Visually displays all prerequisites for any single mod, clearly marking their status (installed, missing, replaced, etc.)."
+                    },
+                    card2: {
+                        title: "Full Load Order Analysis",
+                        description: "Scans your entire current mod list and compares it with dependencies on Nexus Mods to generate a detailed report, including load order issues, missing dependencies, a suggested order, and one-click correction."
+                    },
+                    card3: {
+                        title: "Find Missing Translations",
+                        description: "Scans all your installed mods and searches for available but uninstalled community translations on Nexus Mods based on a specified language (e.g., Mandarin)."
+                    },
+                    card4: {
+                        title: "Visual Dependency Graph",
+                        description: "Generates an intuitive dependency graph for a single mod, making complex relationships easy to understand. (Requires separate installation of Graphviz)"
+                    },
+                    card5: {
+                        title: "Powerful Auxiliary Functions",
+                        description: "All views support quick search and highlighting, middle-click opens pages in the browser, and it offers convenient cache and rule management."
+                    }
+                },
+                installation: {
+                    title: "Installation Guide",
+                    step1: {
+                        title: "Place the Plugin",
+                        description: "Copy the entire `dep_analysis` folder into the `plugins` directory of your MO2 installation.",
+                        path_note: "Example Path: <code class='bg-slate-200 p-1 rounded'>D:\\Games\\SkyrimSE\\plugins\\dep_analysis</code>"
+                    },
+                    step2: {
+                        title: "Place Translation Files (Optional)",
+                        description: "If the plugin package includes a `translations` folder, copy the `.qm` files from it into the `translations` directory of your MO2 installation. This is mainly for providing UI translations for non-Chinese users.",
+                        path_note: "Example Path: <code class='bg-slate-200 p-1 rounded'>D:\\Games\\SkyrimSE\\translations</code>"
+                    },
+                    step3: {
+                        title: "Install Graphviz (Optional)",
+                        description: "If you want to use the \"Generate Dependency Graph\" feature, you need to install Graphviz separately. You can skip this step if you don't need this feature. During installation, make sure to check the option to \"Add Graphviz to the system PATH for all users\".",
+                        link: "Download from Graphviz Official Website →"
+                    },
+                    step4: {
+                        title: "Restart MO2",
+                        description: "After completing the steps above, <strong>completely close and restart Mod Organizer 2</strong>. You should then find \"Nexus Mods Dependency Analyzer\" in the toolbar dropdown menu (the wrench icon)."
+                    }
+                },
+                usage: {
+                    title: "Usage",
+                    item1: {
+                        title: "Launch the Plugin",
+                        description: "Launch \"Nexus Mods Dependency Analyzer\" from the MO2 toolbar."
+                    },
+                    item2: {
+                        title: "Dependency Tree Analysis",
+                        description: "In the first tab, enter a Nexus Mod ID (numbers only) and click \"Analyze Dependency Tree\" or \"Generate Dependency Graph\"."
+                    },
+                    item3: {
+                        title: "Full Analysis",
+                        description: "In the \"Full Analysis\" tab, click \"Generate Full Analysis Report\". After the report is generated, right-click on a sort order issue item to apply a one-click fix."
+                    },
+                    item4: {
+                        title: "Find Translations",
+                        description: "In the \"Find Missing Translations\" tab, enter the English keyword for the target language (e.g., Mandarin, German) and click \"Start Search\"."
+                    }
+                },
+                hotkeys: {
+                    title: "Hotkeys",
+                    item1: {
+                        description: "Open/close the search bar in the currently active tab."
+                    },
+                    item2: {
+                        description: "When the search bar is open, press this key to close it quickly."
+                    },
+                    item3: {
+                        description: "Click on a mod item in any view to quickly open its Nexus Mods page in your browser.",
+                        key: "Middle-Mouse Click"
+                    }
+                },
+                footer: {
+                    text: "Nexus Mods Dependency Analyzer README"
+                }
+            }
+        };
+
+        let currentLang = 'zh';
+        const langToggleBtn = document.getElementById('lang-toggle');
+
+        function updateContent(lang) {
+            document.querySelectorAll('[data-translate-key]').forEach(element => {
+                const key = element.getAttribute('data-translate-key');
+                try {
+                    const translation = key.split('.').reduce((obj, i) => obj[i], translations[lang]);
+                    if (translation) {
+                        element.innerHTML = translation;
+                    }
+                } catch (e) {
+                    console.error(`Could not find translation for key: ${key} in lang: ${lang}`, e);
+                }
+            });
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            langToggleBtn.textContent = lang === 'zh' ? 'English' : '中文';
+        }
+
+        langToggleBtn.addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateContent(currentLang);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateContent(currentLang);
+        });
+    </script>
+</body>
+
+</html>

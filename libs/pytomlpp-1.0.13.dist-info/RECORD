@@ -1,0 +1,14 @@
+pytomlpp-1.0.13.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+pytomlpp-1.0.13.dist-info/METADATA,sha256=TOprU1XgCwZ5BwrQdfHmPiWqMu51geeVioWCPUjDvns,4922
+pytomlpp-1.0.13.dist-info/RECORD,,
+pytomlpp-1.0.13.dist-info/REQUESTED,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+pytomlpp-1.0.13.dist-info/WHEEL,sha256=RYNUKzg4pggqpqERKe4OLbPF4ZPP-Ng-rmq_sekLDXg,101
+pytomlpp-1.0.13.dist-info/licenses/LICENSE,sha256=NoX4Gl0aPFIHkIkIiNb7S2hGpC5-VGelIqAZczie4Wk,1093
+pytomlpp-1.0.13.dist-info/top_level.txt,sha256=RHp4QG1BqUDU3DTLdGItb_rh_WzYDxfkCiZ8h_xj0lc,9
+pytomlpp/__init__.py,sha256=MBNbFvu4Qu79R8diWhCE160z088kunJgT8Fn4Jt8LuU,243
+pytomlpp/__pycache__/__init__.cpython-312.pyc,,
+pytomlpp/__pycache__/_io.cpython-312.pyc,,
+pytomlpp/_impl.cp312-win_amd64.pyd,sha256=XwpRMg4tQPRo14ZkwBg2WIl9i1M4ivOQTizY_Akne_c,404480
+pytomlpp/_impl.pyi,sha256=1yP_A-LGUGaWW0puiJ1QjZwKlXfdoNuZqDnblw90FzE,108
+pytomlpp/_io.py,sha256=fG9LciyZfH5pEvC4gsDvqJSVV8LXgbaky-zya9DxjHw,1799
+pytomlpp/py.typed,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
