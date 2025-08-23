@@ -63,6 +63,11 @@ class WabbajackInstaller:
         self._progress_state = {}
         self._progress_reporter_thread = None
         self._downloading_active = False
+        
+        self._directives_processed_count = 0
+        self._eta_reporter_thread = None
+        self._directive_processing_active = False
+        self._progress_save_lock = threading.Lock()
 
     def _check_stop_signal(self):
         """检查是否收到了停止信号，如果收到则抛出异常。"""
@@ -71,6 +76,7 @@ class WabbajackInstaller:
 
     def _put_result(self, type: str, data: Any):
         """向UI线程安全地发送结果。"""
+        # 允许关键的完成/清理信号在任何情况下都能发送
         if type in ['wabbajack_complete', 'wabbajack_download_update'] or not self._stop_requested.is_set():
             self.result_queue.put({'type': type, 'data': data})
 
@@ -266,11 +272,11 @@ class WabbajackInstaller:
             log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟下载')} {archive_name} ({downloader_type})")
             total_size = archive.get("Size", 1024 * 1024)
             
-            sim_speed = 30.0 # 默认模拟速度
+            sim_speed = 1000.0 # 默认模拟速度
             if downloader_type == "GameFileSourceDownloader":
-                sim_speed = 300.0 # 模拟本地复制速度
+                sim_speed = 3000.0 # 模拟本地复制速度
             elif downloader_type == "NexusDownloader":
-                sim_speed = 5.0 # 模拟N网慢速下载
+                sim_speed = 500.0 # 模拟N网慢速下载
             
             try:
                 self._simulate_download(worker_id, archive_name, total_size, sim_speed)
@@ -538,8 +544,65 @@ class WabbajackInstaller:
         except IOError as e:
             log.error(f"{self.__tr('无法保存进度')}: {e}")
 
+    def _report_directive_eta(self, start_time: float, total_directives: int, start_index: int):
+        """定期报告指令处理的预计剩余时间。"""
+        while self._directive_processing_active:
+            try:
+                self._check_stop_signal()
+            except InstallCancelledError:
+                break
+
+            elapsed_time = time.time() - start_time
+            
+            with self._progress_lock:
+                processed_since_start = self._directives_processed_count - start_index
+
+            if elapsed_time > 2 and processed_since_start > 0:
+                speed = processed_since_start / elapsed_time
+                remaining_directives = total_directives - self._directives_processed_count
+                if speed > 0:
+                    eta_seconds = int(remaining_directives / speed)
+                    eta_str = time.strftime('%H:%M:%S', time.gmtime(eta_seconds))
+                    log.info(self.__tr("已处理 {done}/{total} 条指令，预计剩余时间: {eta}").format(
+                        done=self._directives_processed_count, total=total_directives, eta=eta_str))
+            
+            time.sleep(5)
+
+    def _process_single_directive(self, directive: Dict, wj_zip_handle: zipfile.ZipFile):
+        """处理单个安装指令，此方法在线程池中执行。"""
+        self._check_stop_signal()
+        worker_id = threading.current_thread().name
+        self._put_result('wabbajack_directive_update', {'worker_id': worker_id, 'directive': directive, 'active': True})
+        
+        target_rel_path = directive["To"]
+        if self.parse_only_mode:
+            log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟应用指令')} '{directive['$type']}' {self.__tr('到')} '{target_rel_path}'")
+            time.sleep(0.01)
+        else:
+            target_abs_path = self.install_path / target_rel_path
+            os.makedirs(target_abs_path.parent, exist_ok=True)
+            
+            if directive["$type"] == "FromArchive":
+                archive_hash, path_in_archive = directive["ArchiveHashPath"]
+                archive_path = self.download_path / self.archive_hashes[archive_hash]
+                with zipfile.ZipFile(archive_path, 'r') as zf, zf.open(path_in_archive) as source, open(target_abs_path, 'wb') as dest:
+                    shutil.copyfileobj(source, dest)
+            elif directive["$type"] in ["InlineFile", "RemappedInlineFile"]:
+                with wj_zip_handle.open(directive["SourceDataID"]) as source, open(target_abs_path, 'wb') as dest:
+                    shutil.copyfileobj(source, dest)
+            elif directive["$type"] == "PatchedFromArchive":
+                archive_hash, path_in_archive = directive["ArchiveHashPath"]
+                archive_path = self.download_path / self.archive_hashes[archive_hash]
+                with zipfile.ZipFile(archive_path, 'r') as zf:
+                    original_data = zf.read(path_in_archive)
+                patch_data = wj_zip_handle.read(directive["PatchID"])
+                patched_data = bsdiff4.patch(original_data, patch_data)
+                with open(target_abs_path, 'wb') as f: f.write(patched_data)
+
+        self._put_result('wabbajack_directive_update', {'worker_id': worker_id, 'directive': directive, 'active': False})
+
     def process_directives(self):
-        """处理所有安装指令。"""
+        """使用线程池并行处理所有安装指令。"""
         directives = self.modlist_data.get("Directives", [])
         if not directives:
             log.info(self.__tr("没有需要处理的安装指令。"))
@@ -554,47 +617,53 @@ class WabbajackInstaller:
             log.info(self.__tr("检测到安装进度，从第 {index} 条指令恢复。").format(index=start_index + 1))
             self._put_result('wabbajack_task_progress', {'current': start_index, 'total': len(directives)})
 
-        with zipfile.ZipFile(self.wabbajack_file_path, 'r') as wj_zip:
-            for i, directive in enumerate(directives):
-                self._check_stop_signal()
-                if i < start_index: continue
-                
-                self._put_result('wabbajack_task_progress', {'current': i + 1, 'total': len(directives)})
-                self._put_result('wabbajack_directive_update', {'worker_id': 'Installer-1', 'directive': directive, 'active': True})
-                target_rel_path = directive["To"]
+        self._directives_processed_count = start_index
+        start_time = time.time()
+        self._directive_processing_active = True
+        completed_indices = set(range(start_index))
+        last_consecutive_completed = start_index - 1
+        
+        self._eta_reporter_thread = threading.Thread(
+            target=self._report_directive_eta, 
+            args=(start_time, len(directives), start_index), 
+            daemon=True
+        )
+        self._eta_reporter_thread.start()
 
-                if self.parse_only_mode:
-                    log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟应用指令')} '{directive['$type']}' {self.__tr('到')} '{target_rel_path}'")
-                    time.sleep(0.01)
-                    self._put_result('wabbajack_directive_update', {'worker_id': 'Installer-1', 'directive': directive, 'active': False})
-                    continue
-
-                target_abs_path = self.install_path / target_rel_path
-                os.makedirs(target_abs_path.parent, exist_ok=True)
-                
-                try:
-                    if directive["$type"] == "FromArchive":
-                        archive_hash, path_in_archive = directive["ArchiveHashPath"]
-                        archive_path = self.download_path / self.archive_hashes[archive_hash]
-                        with zipfile.ZipFile(archive_path, 'r') as zf, zf.open(path_in_archive) as source, open(target_abs_path, 'wb') as dest:
-                            shutil.copyfileobj(source, dest)
-                    elif directive["$type"] in ["InlineFile", "RemappedInlineFile"]:
-                        with wj_zip.open(directive["SourceDataID"]) as source, open(target_abs_path, 'wb') as dest:
-                            shutil.copyfileobj(source, dest)
-                    elif directive["$type"] == "PatchedFromArchive":
-                        archive_hash, path_in_archive = directive["ArchiveHashPath"]
-                        archive_path = self.download_path / self.archive_hashes[archive_hash]
-                        with zipfile.ZipFile(archive_path, 'r') as zf:
-                            original_data = zf.read(path_in_archive)
-                        patch_data = wj_zip.read(directive["PatchID"])
-                        patched_data = bsdiff4.patch(original_data, patch_data)
-                        with open(target_abs_path, 'wb') as f: f.write(patched_data)
+        try:
+            with zipfile.ZipFile(self.wabbajack_file_path, 'r') as wj_zip:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=self.settings.MAX_WORKERS, thread_name_prefix="WJ-Installer") as executor:
                     
-                    self._save_progress({'last_completed_directive': i})
-                except Exception as e:
-                    self._check_stop_signal() # 检查是否是由于停止信号导致的异常
-                    log.error(f"{self.__tr('处理指令失败')} {target_rel_path}: {e}")
-                    self._put_result('wabbajack_directive_update', {'worker_id': 'Installer-1', 'directive': directive, 'active': False})
-                    return
-                
-                self._put_result('wabbajack_directive_update', {'worker_id': 'Installer-1', 'directive': directive, 'active': False})
+                    futures = {
+                        executor.submit(self._process_single_directive, directive, wj_zip): i
+                        for i, directive in enumerate(directives) if i >= start_index
+                    }
+
+                    for future in concurrent.futures.as_completed(futures):
+                        self._check_stop_signal()
+                        index = futures[future]
+                        try:
+                            future.result()
+                            
+                            with self._progress_save_lock:
+                                completed_indices.add(index)
+                                with self._progress_lock:
+                                    self._directives_processed_count = len(completed_indices)
+
+                                while (last_consecutive_completed + 1) in completed_indices:
+                                    last_consecutive_completed += 1
+                                
+                                self._save_progress({'last_completed_directive': last_consecutive_completed})
+
+                            self._put_result('wabbajack_task_progress', {'current': self._directives_processed_count, 'total': len(directives)})
+                        
+                        except Exception as e:
+                            self._check_stop_signal()
+                            directive = directives[index]
+                            log.error(f"{self.__tr('处理指令失败')} {directive['To']}: {e}", exc_info=True)
+                            self._stop_requested.set()
+                            raise InstallCancelledError(f"Failed on directive {index}") from e
+        finally:
+            self._directive_processing_active = False
+            if self._eta_reporter_thread:
+                self._eta_reporter_thread.join(timeout=1)

@@ -318,7 +318,8 @@ class AnalyzerDialog(QDialog):
         
         download_path_layout = QHBoxLayout()
         self.wj_download_path_input = QLineEdit()
-        self.wj_download_path_input.setText(str(self.settings.BASE_DIR / "wabbajack_downloads"))
+        mo2_downloads_path = self.organizer.downloadsPath()
+        self.wj_download_path_input.setText(mo2_downloads_path)
         browse_download_btn = QPushButton("...")
         download_path_layout.addWidget(self.wj_download_path_input)
         download_path_layout.addWidget(browse_download_btn)
