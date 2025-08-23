@@ -2,7 +2,6 @@
 
 import time
 import re
-import logging
 import heapq
 import sqlite3
 import sys
@@ -27,14 +26,14 @@ try:
     import orjson
     import graphviz
 except ImportError:
-    # 这些库应该由主 __init__.py 保证存在
     pass
 
 from .settings import PluginSettings
 from ..utils.playwright_manager import PlaywrightManager
 from ..utils.helpers import _find_chinese_font, _extract_mod_id_from_url
+from .. import logging as plugin_logging
 
-log = logging.getLogger(__name__)
+log = plugin_logging.get_logger(__name__)
 
 class ModAnalyzer:
     """封装了所有与数据抓取、解析和依赖关系计算相关的功能。"""
@@ -61,30 +60,17 @@ class ModAnalyzer:
     def _put_result(self, type: str, data: Any):
         self.result_queue.put({'type': type, 'data': data})
 
-    def log(self, message: str, level: str = "info"):
-        level_map = {"INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL}
-        current_log_level = level_map.get(self.settings.LOG_LEVEL, logging.INFO)
-        message_level = level_map.get(level.upper(), logging.INFO)
-
-        if message_level >= current_log_level:
-            log_entry = f"[{level.upper()}] {message}"
-            self._put_result('log', log_entry)
-        
-        if message_level == logging.ERROR: log.error(message)
-        elif message_level == logging.WARNING: log.warning(message)
-        else: log.info(message)
-
     def request_stop(self):
         self._stop_requested.set()
-        self.log(self.__tr("已收到停止信号，正在中止当前操作..."))
+        log.info(self.__tr("已收到停止信号，正在中止当前操作..."))
 
     def initialize(self):
         """初始化分析器，加载配置和数据。"""
-        self.log(self.__tr("正在初始化分析器..."))
+        log.info(self.__tr("正在初始化分析器..."))
         self._init_db()
         self._load_rules()
         self._parse_installed_mods()
-        self.log(self.__tr("分析器初始化完成。"))
+        log.info(self.__tr("分析器初始化完成。"))
 
     def _init_db(self):
         """初始化SQLite数据库连接和表结构。"""
@@ -97,9 +83,9 @@ class ModAnalyzer:
                 )
             ''')
             self.conn.commit()
-            self.log(self.__tr("缓存数据库 '{table}' 初始化成功。").format(table=self.settings.CACHE_TABLE_NAME))
+            log.info(self.__tr("缓存数据库 '{table}' 初始化成功。").format(table=self.settings.CACHE_TABLE_NAME))
         except Exception as e:
-            self.log(self.__tr("初始化缓存数据库时出错: {error}").format(error=e), "error")
+            log.error(self.__tr("初始化缓存数据库时出错: {error}").format(error=e))
             self.conn = None
 
     def is_browser_ready(self) -> bool:
@@ -107,38 +93,38 @@ class ModAnalyzer:
 
     def initialize_browser_and_check_login(self):
         """初始化或获取一个浏览器页面并检查登录状态。"""
-        self.log(self.__tr("正在初始化浏览器并检查登录状态..."))
+        log.info(self.__tr("正在初始化浏览器并检查登录状态..."))
         page = self.playwright_manager.get_page()
         if not page:
             self._put_result('browser_ready', False)
             return
 
         try:
-            self.log(self.__tr("正在访问Nexus Mods账户页面以验证登录..."))
+            log.info(self.__tr("正在访问Nexus Mods账户页面以验证登录..."))
             page.goto(self.settings.NEXUS_SECURITY_URL, wait_until='domcontentloaded', timeout=self.settings.REQUEST_TIMEOUT)
             
             is_logged_in = self.settings.NEXUS_LOGIN_URL not in page.url
             
             if is_logged_in:
                 page.goto(self.settings.NEXUS_BASE_URL)
-                self.log(self.__tr("验证成功，已登录Nexus Mods。"))
+                log.info(self.__tr("验证成功，已登录Nexus Mods。"))
                 self._put_result('login_status', {'success': True})
             else:
                 page.goto(self.settings.NEXUS_BASE_URL)
-                self.log(self.__tr("未登录Nexus Mods。部分模组（如成人内容）可能无法抓取。"), "warning")
+                log.warning(self.__tr("未登录Nexus Mods。部分模组（如成人内容）可能无法抓取。"))
                 self._put_result('login_status', {'success': False})
 
             self._put_result('browser_ready', True)
 
         except Exception as e:
-            self.log(self.__tr("检查登录状态时出错: {error}").format(error=e), "error")
+            log.error(self.__tr("检查登录状态时出错: {error}").format(error=e))
             self.playwright_manager.close_main_context()
             self._put_result('browser_ready', False)
     
     def _check_before_analysis(self, analysis_type_for_error: str) -> bool:
         """在执行任何分析任务前检查浏览器状态。"""
         if not self.is_browser_ready():
-            self.log("浏览器未就绪，无法开始分析。请尝试重启插件或在设置中重新登录。", "error")
+            log.error("浏览器未就绪，无法开始分析。请尝试重启插件或在设置中重新登录。")
             self._put_result('error', "浏览器未就绪，请先在设置中登录或检查日志。")
             self._put_result('analysis_complete', {"type": analysis_type_for_error, "data": None})
             return False
@@ -156,7 +142,7 @@ class ModAnalyzer:
                 self._put_result('progress', (1, 1, self.__tr("分析已中止。")))
             self._put_result('analysis_complete', {"type": "single_mod", "data": root_data})
         except Exception as e:
-            self.log(f"分析单个模组时出错: {e}", "error")
+            log.error(f"分析单个模组时出错: {e}", exc_info=True)
             self._put_result('error', str(e))
 
     def generate_dependency_graph(self, initial_mod_id: str, hide_vr: bool, hide_optional: bool, hide_recommended: bool):
@@ -189,13 +175,13 @@ class ModAnalyzer:
             self._put_result('analysis_complete', {"type": "graph", "data": {"svg_data": svg_data, "dot_source": dot_source}})
 
         except ImportError:
-            self.log("Graphviz库未安装。", "error")
+            log.error("Graphviz库未安装。")
             self._put_result('error', self.__tr("Graphviz库未安装，无法生成关系图。"))
         except graphviz.backend.ExecutableNotFound:
-            self.log("未找到Graphviz可执行程序。", "error")
+            log.error("未找到Graphviz可执行程序。")
             self._put_result('error', self.__tr("未找到Graphviz可执行程序。请确保已安装Graphviz并将其添加至系统PATH。"))
         except Exception as e:
-            self.log(f"生成关系图时出错: {e}", "error")
+            log.error(f"生成关系图时出错: {e}", exc_info=True)
             self._put_result('error', str(e))
 
     def _add_nodes_to_graph(self, dot: graphviz.Digraph, node_data: Dict):
@@ -225,7 +211,7 @@ class ModAnalyzer:
         try:
             self._parse_installed_mods()
             if not self.folder_to_id:
-                self.log(self.__tr("未找到任何带有效ID的已启用模组，无法生成分析报告。"), "error")
+                log.error(self.__tr("未找到任何带有效ID的已启用模组，无法生成分析报告。"))
                 self._put_result('analysis_complete', {"type": "full_analysis", "data": {"error": "no_mods"}})
                 return
             
@@ -255,7 +241,7 @@ class ModAnalyzer:
             else:
                  self._put_result('analysis_complete', {"type": "full_analysis", "data": {}})
         except Exception as e:
-            self.log(f"生成分析报告时出错: {e}", "error")
+            log.error(f"生成分析报告时出错: {e}", exc_info=True)
             self._put_result('error', str(e))
 
     def find_missing_translations(self, language_query: str, show_original_update_time: bool):
@@ -284,7 +270,7 @@ class ModAnalyzer:
 
                 all_trans_ids = {t['id'] for t in translations_on_page if t.get('id')}
                 if not all_trans_ids.isdisjoint(self.installed_ids):
-                    self.log(self.__tr("检测到 '{mod_name}' 的一个翻译版本已安装，跳过。").format(mod_name=mod_name))
+                    log.info(self.__tr("检测到 '{mod_name}' 的一个翻译版本已安装，跳过。").format(mod_name=mod_name))
                     continue
 
                 found_translations_for_this_mod = []
@@ -316,12 +302,12 @@ class ModAnalyzer:
 
             self._put_result('analysis_complete', {"type": "translations", "data": results})
         except Exception as e:
-            self.log(f"查找翻译时出错: {e}", "error")
+            log.error(f"查找翻译时出错: {e}", exc_info=True)
             self._put_result('error', str(e))
 
     def delete_cache_entries(self, items_to_delete: List[Dict]):
         if not self.conn: return
-        self.log(self.__tr("收到删除 {count} 个缓存条目的请求...").format(count=len(items_to_delete)))
+        log.info(self.__tr("收到删除 {count} 个缓存条目的请求...").format(count=len(items_to_delete)))
         ids_to_delete = [item['id'] for item in items_to_delete if item['id'] != 'N/A']
         
         try:
@@ -329,9 +315,9 @@ class ModAnalyzer:
             placeholders = ','.join('?' for _ in ids_to_delete)
             cursor.execute(f"DELETE FROM {self.settings.CACHE_TABLE_NAME} WHERE mod_id IN ({placeholders})", ids_to_delete)
             self.conn.commit()
-            self.log(self.__tr("已从缓存中删除 {count} 个条目。").format(count=cursor.rowcount))
+            log.info(self.__tr("已从缓存中删除 {count} 个条目。").format(count=cursor.rowcount))
         except Exception as e:
-            self.log(f"删除缓存时出错: {e}", "error")
+            log.error(f"删除缓存时出错: {e}")
 
         self._put_result('analysis_complete', {"type": "cache_deleted", "data": self.get_all_cache_data()})
 
@@ -341,9 +327,9 @@ class ModAnalyzer:
             cursor = self.conn.cursor()
             cursor.execute(f"DELETE FROM {self.settings.CACHE_TABLE_NAME}")
             self.conn.commit()
-            self.log(self.__tr("已清空当前游戏的所有缓存。"))
+            log.info(self.__tr("已清空当前游戏的所有缓存。"))
         except Exception as e:
-            self.log(f"清空缓存时出错: {e}", "error")
+            log.error(f"清空缓存时出错: {e}")
         self._put_result('analysis_complete', {"type": "cache_cleared", "data": None})
 
     def get_and_send_cache_data(self):
@@ -354,10 +340,10 @@ class ModAnalyzer:
         try:
             with open(self.settings.RULES_PATH, 'w', encoding='utf-8') as f:
                 pytomlpp.dump(new_rules_data, f)
-            self.log(self.__tr("规则已成功保存到 rules.toml。"))
+            log.info(self.__tr("规则已成功保存到 rules.toml。"))
             self._load_rules()
         except Exception as e:
-            self.log(self.__tr("保存规则文件时出错: {error}").format(error=e), "error")
+            log.error(self.__tr("保存规则文件时出错: {error}").format(error=e))
             self._put_result('error', self.__tr("保存规则失败，请检查日志。"))
     
     def add_ids_to_rule_list(self, list_name: str, section_name: str, ids_to_add: List[str]):
@@ -378,7 +364,7 @@ class ModAnalyzer:
             new_ids = [id_str for id_str in ids_to_add if id_str not in existing_ids]
             
             if not new_ids:
-                self.log(self.__tr("所有待添加的ID已存在于规则 '{section}.{list}' 中，无需操作。").format(section=section_name, list=list_name))
+                log.info(self.__tr("所有待添加的ID已存在于规则 '{section}.{list}' 中，无需操作。").format(section=section_name, list=list_name))
                 return
 
             rules_data[section_name][list_name].extend(new_ids)
@@ -392,21 +378,21 @@ class ModAnalyzer:
             with open(self.settings.RULES_PATH, 'w', encoding='utf-8') as f:
                 pytomlpp.dump(rules_data, f)
             
-            self.log(self.__tr("已成功将 {count} 个新ID添加到规则 '{section}.{list}'。").format(count=len(new_ids), section=section_name, list=list_name))
+            log.info(self.__tr("已成功将 {count} 个新ID添加到规则 '{section}.{list}'。").format(count=len(new_ids), section=section_name, list=list_name))
             self._load_rules()
 
         except Exception as e:
-            self.log(self.__tr("更新规则文件时出错: {error}").format(error=e), "error")
+            log.error(self.__tr("更新规则文件时出错: {error}").format(error=e))
             self._put_result('error', self.__tr("更新规则失败，请检查日志。"))
 
     def update_and_save_settings(self, new_settings_data: dict):
         """接收新设置，更新并重新加载。"""
         try:
             self.settings.update_settings(new_settings_data)
-            self.log(self.__tr("插件设置已成功保存并重新加载。"))
+            log.info(self.__tr("插件设置已成功保存并重新加载。"))
             self._put_result('settings_updated', True)
         except Exception as e:
-            self.log(self.__tr("保存设置时出错: {error}").format(error=e), "error")
+            log.error(self.__tr("保存设置时出错: {error}").format(error=e))
             self._put_result('error', self.__tr("保存设置失败，请检查日志。"))
 
     # --- 内部辅助方法 ---
@@ -422,10 +408,10 @@ class ModAnalyzer:
             self.ignore_ids = set(str(i) for i in rules_data.get('Ignore', {}).get('ids', []))
             self.replacement_map = {str(k): str(v) for k, v in rules_data.get('Replace', {}).items()}
             self.ignore_requirements_of_ids = set(str(i) for i in rules_data.get('IgnoreRequirementsOf', {}).get('ids', []))
-            self.log(self.__tr("成功加载 {ign} 条忽略, {rep} 条替换, {ign_req} 条前置忽略规则。").format(
+            log.info(self.__tr("成功加载 {ign} 条忽略, {rep} 条替换, {ign_req} 条前置忽略规则。").format(
                 ign=len(self.ignore_ids), rep=len(self.replacement_map), ign_req=len(self.ignore_requirements_of_ids)))
         except Exception as e:
-            self.log(self.__tr("解析规则文件时出错: {error}").format(error=e), "error")
+            log.error(self.__tr("解析规则文件时出错: {error}").format(error=e))
             self.ignore_ids, self.replacement_map, self.ignore_requirements_of_ids = set(), {}, set()
 
     def _create_default_rules_file(self):
@@ -437,9 +423,9 @@ class ModAnalyzer:
         try:
             with open(self.settings.RULES_PATH, 'w', encoding='utf-8') as f:
                 pytomlpp.dump(default_rules, f)
-            self.log(self.__tr("已创建默认规则文件: rules.toml"))
+            log.info(self.__tr("已创建默认规则文件: rules.toml"))
         except IOError:
-            self.log(self.__tr("创建规则文件模板失败！"), "error")
+            log.error(self.__tr("创建规则文件模板失败！"))
 
     def _parse_installed_mods(self):
         mod_list = self.organizer.modList()
@@ -451,7 +437,7 @@ class ModAnalyzer:
                 self.folder_to_id[mod_name] = mod_id
                 self.id_to_folders[mod_id].append(mod_name)
         self.installed_ids = set(self.folder_to_id.values())
-        self.log(self.__tr("已解析 {count} 个已安装的带ID的模组。").format(count=len(self.installed_ids)))
+        log.info(self.__tr("已解析 {count} 个已安装的带ID的模组。").format(count=len(self.installed_ids)))
 
     def _is_cache_entry_valid(self, cache_timestamp: str) -> bool:
         if self.settings.CACHE_EXPIRATION_DAYS == 0: return True
@@ -469,7 +455,7 @@ class ModAnalyzer:
         if row:
             cache_timestamp, data_json = row
             if self._is_cache_entry_valid(cache_timestamp):
-                self.log(self.__tr("缓存命中: ID {mod_id}").format(mod_id=mod_id))
+                log.debug(self.__tr("缓存命中: ID {mod_id}").format(mod_id=mod_id))
                 return orjson.loads(data_json)
 
         last_error = None
@@ -477,7 +463,7 @@ class ModAnalyzer:
             if self._stop_requested.is_set(): return None
             try:
                 if attempt > 0: 
-                    self.log(self.__tr("抓取 {mod_id} 失败，在 {delay} 秒后重试 ({attempt}/{max_retries})...").format(
+                    log.warning(self.__tr("抓取 {mod_id} 失败，在 {delay} 秒后重试 ({attempt}/{max_retries})...").format(
                         mod_id=mod_id, delay=self.settings.RETRY_DELAY_MS / 1000.0, attempt=attempt + 1, max_retries=self.settings.MAX_RETRIES))
                     time.sleep(self.settings.RETRY_DELAY_MS / 1000.0)
                 else: 
@@ -488,7 +474,7 @@ class ModAnalyzer:
                     raise ConnectionError("Playwright页面未初始化或已关闭。")
 
                 url = f"{self.settings.NEXUS_BASE_URL}/{self.settings.GAME_NAME}/mods/{mod_id}"
-                self.log(self.__tr("正在抓取: ID {mod_id}").format(mod_id=mod_id))
+                log.info(self.__tr("正在抓取: ID {mod_id}").format(mod_id=mod_id))
                 page.goto(url, wait_until='domcontentloaded', timeout=self.settings.REQUEST_TIMEOUT)
                 
                 content = page.content()
@@ -496,7 +482,7 @@ class ModAnalyzer:
                 
                 if notice_header := tree.xpath('//div[@class="info-content"]/h3[starts-with(@id, "Notice")]'):
                     notice_text = notice_header[0].text_content().strip()
-                    self.log(self.__tr("模组 {mod_id} 不可用 ({reason})，跳过。").format(mod_id=mod_id, reason=notice_text), "warning")
+                    log.warning(self.__tr("模组 {mod_id} 不可用 ({reason})，跳过。").format(mod_id=mod_id, reason=notice_text))
                     
                     if notice_text == "Adult content":
                         self._put_result('adult_content_blocked', {'mod_id': mod_id})
@@ -543,20 +529,20 @@ class ModAnalyzer:
                     return translations
 
                 mod_data = {"id": mod_id, "name": mod_name, "category": category, "update_timestamp": update_timestamp, "dependencies": {'requires': scrape_section('Nexus requirements'), 'required_by': scrape_section('Mods requiring this file')}, "translations": scrape_translations_section()}
-                self.log(self.__tr("抓取成功: {mod_name} ({mod_id})").format(mod_name=mod_data['name'], mod_id=mod_id))
+                log.info(self.__tr("抓取成功: {mod_name} ({mod_id})").format(mod_name=mod_data['name'], mod_id=mod_id))
                 self._cache_mod_data(mod_data)
                 return mod_data
             
             except PlaywrightTimeoutError as e:
                 last_error = e
-                self.log(f"抓取 {mod_id} 时超时 (尝试 {attempt + 1}/{self.settings.MAX_RETRIES}): {e}", "warning")
+                log.warning(f"抓取 {mod_id} 时超时 (尝试 {attempt + 1}/{self.settings.MAX_RETRIES}): {e}")
                 if attempt == self.settings.MAX_RETRIES - 1:
                     self._put_result('cloudflare_block_suspected', {'mod_id': mod_id})
             except Exception as e:
                 last_error = e
-                self.log(f"抓取 {mod_id} 失败 (尝试 {attempt + 1}/{self.settings.MAX_RETRIES}): {e}", "error")
+                log.error(f"抓取 {mod_id} 失败 (尝试 {attempt + 1}/{self.settings.MAX_RETRIES}): {e}")
         
-        self.log(f"所有重试均失败，无法获取模组 {mod_id} 的数据。", "error")
+        log.error(f"所有重试均失败，无法获取模组 {mod_id} 的数据。")
         mod_data = {"id": mod_id, "name": f"抓取失败: ID {mod_id}", "error": str(last_error), "category": "Default", "dependencies": {}, "translations": [], "update_timestamp": 0}
         self._cache_mod_data(mod_data)
         return mod_data
@@ -580,7 +566,7 @@ class ModAnalyzer:
             ''', data_to_insert)
             self.conn.commit()
         except Exception as e:
-            self.log(f"缓存模组 {mod_data.get('id')} 到数据库时出错: {e}", "error")
+            log.error(f"缓存模组 {mod_data.get('id')} 到数据库时出错: {e}")
 
     def _get_effective_id(self, required_id: str) -> str:
         return self.replacement_map.get(required_id, required_id)
@@ -877,5 +863,5 @@ class ModAnalyzer:
             cursor.execute(f"SELECT mod_id, name, category, cache_timestamp FROM {self.settings.CACHE_TABLE_NAME}")
             return [{'id': row[0], 'name': row[1], 'category': row[2], 'timestamp': row[3]} for row in cursor.fetchall()]
         except Exception as e:
-            self.log(f"获取所有缓存数据时出错: {e}", "error")
+            log.error(f"获取所有缓存数据时出错: {e}")
             return []
