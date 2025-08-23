@@ -30,6 +30,24 @@ from .. import logging as plugin_logging
 
 log = plugin_logging.get_logger(__name__)
 
+# Github镜像列表
+GITHUB_MIRRORS = [
+    "https://gh.llkk.cc", "https://ghproxy.net", "https://gitproxy.click",
+    "https://github.tbedu.top", "https://ghfile.geekertao.top", "https://ghf.无名氏.top",
+    "https://ghm.078465.xyz", "https://gh-proxy.net", "https://jiashu.1win.eu.org",
+    "https://j.1win.ggff.net", "https://j.1lin.dpdns.org", "https://gh-deno.mocn.top",
+    "https://git.yylx.win", "https://tvv.tw", "https://gp-us.fyan.top",
+    "https://gitproxy.127731.xyz", "https://github.cmsz.dpdns.org",
+    "https://ghproxy.fangkuai.fun", "https://github.3x25.com", "https://ghproxy.vansour.top",
+    "https://ghp.ml1.one", "https://x.whereisdoge.work", "https://y.whereisdoge.work",
+    "https://gh.catmak.name", "https://hub.gitmirror.com", "https://github.dpik.top",
+    "https://gh.dpik.top", "http://fast.qmwneb946.dpdns.org", "https://gh-proxy.com",
+    "https://gh.b52m.cn", "https://gh.bugdey.us.kg", "https://gh.wsmdn.dpdns.org",
+    "https://github.lxxz.xyz", "http://gh.927223.xyz", "https://ghp.qi9420.xyz",
+    "https://gh.felicity.ac.cn", "https://github-proxy.teach-english.tech",
+    "https://github-proxy.memory-echoes.cn", "https://gh.ptoe.cc",
+]
+
 DOMAIN_REMAPS = {
     "wabbajack.b-cdn.net": "authored-files.wabbajack.org",
     "wabbajack-mirror.b-cdn.net": "mirror.wabbajack.org",
@@ -55,7 +73,7 @@ class WabbajackInstaller:
         self.download_path: Optional[Path] = None
         self.progress_file_path: Optional[Path] = None
         self.modlist_data: Dict[str, Any] = {}
-        self.archive_hashes: Dict[str, str] = {} # 映射：哈希 -> 文件名
+        self.archive_hashes: Dict[str, str] = {}
         self.parse_only_mode = False
         self.__tr = lambda text: QApplication.translate("WabbajackInstaller", text)
         
@@ -69,6 +87,7 @@ class WabbajackInstaller:
         self._directive_processing_active = False
         self._progress_save_lock = threading.Lock()
         self._progress_data: Dict[str, Any] = {}
+        self.fastest_proxy: Optional[str] = None
 
 
     def _check_stop_signal(self):
@@ -198,7 +217,7 @@ class WabbajackInstaller:
                     time.sleep(1)
                     self._check_stop_signal()
             
-            log.debug(self.__tr("正在处理 {name} ({num}/{total})...").format(name=archive['Name'], num=i+1, total=len(nexus_archives)))
+            log.info(self.__tr("正在处理 {name} ({num}/{total})...").format(name=archive['Name'], num=i+1, total=len(nexus_archives)))
             
             download_url = None
             archive_hash = archive["Hash"]
@@ -214,7 +233,7 @@ class WabbajackInstaller:
                     query_params = parse_qs(parsed_url.query)
                     if 'expires' in query_params:
                         expires_timestamp = int(query_params['expires'][0])
-                        safe_expires = expires_timestamp - 3600 # 减去一小时作为安全缓冲
+                        safe_expires = expires_timestamp - 3600
                         self._progress_data.setdefault('resolved_urls', {})[archive_hash] = {
                             'url': download_url,
                             'expires': safe_expires
@@ -235,6 +254,9 @@ class WabbajackInstaller:
 
     def download_archives(self):
         """使用生产者-消费者模式并行下载所有文件。"""
+        if not self.parse_only_mode:
+            self._get_best_github_proxy()
+
         all_archives = self.modlist_data.get("Archives", [])
         archives_to_download = []
         completed_tasks = 0
@@ -250,19 +272,23 @@ class WabbajackInstaller:
             archive_hash = archive["Hash"]
             target_path = self.download_path / archive["Name"]
             
+            skip = False
             if archive_hash in verified_files and Path(verified_files[archive_hash]).exists():
-                 log.debug(f"{self.__tr('文件已在进度文件中标记为已验证，跳过')}: {archive['Name']}")
+                 log.info(f"{self.__tr('文件已在进度文件中标记为已验证，跳过')}: {archive['Name']}")
+                 skip = True
             elif target_path.exists() and self.verify_hash(target_path, archive_hash):
-                log.debug(f"{self.__tr('文件已存在且校验通过，跳过')}: {archive['Name']}")
+                log.info(f"{self.__tr('文件已存在且校验通过，跳过')}: {archive['Name']}")
                 self._progress_data.setdefault('verified_archives', {})[archive_hash] = str(target_path)
                 needs_save = True
+                skip = True
+
+            if skip:
+                self._write_meta_file(archive)
+                self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
+                completed_tasks += 1
+                self._put_result('wabbajack_task_progress', {'current': completed_tasks, 'total': len(all_archives)})
             else:
                 archives_to_download.append(archive)
-                continue
-            
-            self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
-            completed_tasks += 1
-            self._put_result('wabbajack_task_progress', {'current': completed_tasks, 'total': len(all_archives)})
         
         if needs_save:
             self._save_progress(self._progress_data)
@@ -375,6 +401,7 @@ class WabbajackInstaller:
                     result = "Downloaded"
                     self._progress_data.setdefault('verified_archives', {})[archive_hash] = str(target_path)
                     self._save_progress(self._progress_data)
+                    self._write_meta_file(archive)
                     log.debug(f"{self.__tr('下载完成')}: {archive_name}")
                 else:
                     log.error(f"{archive_name} {self.__tr('下载后哈希校验失败！')}")
@@ -393,6 +420,73 @@ class WabbajackInstaller:
         
         self._put_result('wabbajack_archive_progress', {'name': archive_name, 'status': result})
         return result
+
+    def _write_meta_file(self, archive: Dict[str, Any]):
+        """如果存在Meta信息，且meta文件不存在，则写入.meta文件。"""
+        if self.parse_only_mode:
+            return
+
+        meta_content = archive.get("Meta")
+        if meta_content:
+            meta_path = self.download_path / (archive["Name"] + ".meta")
+            if not meta_path.exists():
+                try:
+                    with open(meta_path, 'w', encoding='utf-8') as f:
+                        f.write(meta_content.replace('\r\n', '\n'))
+                    log.debug(f"成功写入Meta文件: {meta_path.name}")
+                except IOError as e:
+                    log.warning(f"写入Meta文件失败: {meta_path.name}, 错误: {e}")
+
+    def _ping_url(self, url: str) -> float:
+        """测试到URL的延迟，返回毫秒数。"""
+        try:
+            response = requests.head(url, timeout=2)
+            response.raise_for_status()
+            return response.elapsed.total_seconds() * 1000
+        except (requests.RequestException, IOError):
+            return float('inf')
+
+    def _get_best_github_proxy(self):
+        """测试并选择最快的Github代理，结果会缓存。"""
+        if self._progress_data.get('fastest_github_proxy'):
+            self.fastest_proxy = self._progress_data['fastest_github_proxy']
+            if self.fastest_proxy == "github":
+                log.info(self.__tr("根据缓存，将直连Github。"))
+            else:
+                log.info(self.__tr("将使用缓存的Github镜像: {proxy}").format(proxy=self.fastest_proxy))
+            return
+
+        log.info(self.__tr("正在测试Github连接速度..."))
+        direct_latency = self._ping_url("https://raw.githubusercontent.com/about/drawings/master/README.md")
+        
+        if direct_latency < 100:
+            log.info(self.__tr("直连Github速度良好 ({latency:.0f}ms)，不使用代理。").format(latency=direct_latency))
+            self.fastest_proxy = "github"
+        else:
+            log.warning(self.__tr("直连Github延迟较高 ({latency:.0f}ms)，开始测试镜像...").format(latency=direct_latency))
+            latencies = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                future_to_mirror = {executor.submit(self._ping_url, mirror): mirror for mirror in GITHUB_MIRRORS}
+                for future in concurrent.futures.as_completed(future_to_mirror):
+                    mirror = future_to_mirror[future]
+                    try:
+                        latency = future.result()
+                        if latency != float('inf'):
+                            latencies[mirror] = latency
+                            log.debug(f"镜像 {mirror} 延迟: {latency:.0f}ms")
+                    except Exception:
+                        pass
+            
+            if not latencies:
+                log.error(self.__tr("所有Github镜像均测试失败，将尝试直连。"))
+                self.fastest_proxy = "github"
+            else:
+                best_mirror = min(latencies, key=latencies.get)
+                self.fastest_proxy = best_mirror
+                log.info(self.__tr("已选定最快镜像: {mirror} ({latency:.0f}ms)").format(mirror=best_mirror, latency=latencies[best_mirror]))
+        
+        self._progress_data['fastest_github_proxy'] = self.fastest_proxy
+        self._save_progress(self._progress_data)
 
     def _update_download_progress(self, worker_id, file_name, downloaded, total, chunk_size):
         """更新单个线程和总体的下载进度。"""
@@ -435,9 +529,15 @@ class WabbajackInstaller:
         return url_str, {}
 
     def _download_http(self, state: Dict[str, Any], target_path: Path, worker_id: str):
-        """处理标准的HTTP下载。"""
+        """处理标准的HTTP下载，并应用Github代理。"""
         url, headers = self._get_remapped_url_and_headers(state["Url"])
-        log.debug(f"({worker_id}) {self.__tr('正在从URL下载')}: {target_path.name}")
+        
+        if self.fastest_proxy and self.fastest_proxy != "github" and "github" in url:
+            proxied_url = f"{self.fastest_proxy}/{url}"
+            log.info(f"({worker_id}) {self.__tr('使用Github镜像下载')}: {target_path.name}")
+            url = proxied_url
+        else:
+            log.debug(f"({worker_id}) {self.__tr('正在从URL下载')}: {target_path.name}")
         
         last_exception = None
         try:
@@ -617,7 +717,8 @@ class WabbajackInstaller:
         default_progress = {
             'last_completed_directive': -1,
             'verified_archives': {},
-            'resolved_urls': {}
+            'resolved_urls': {},
+            'fastest_github_proxy': None # None表示未测试
         }
         if self.parse_only_mode:
             return default_progress
