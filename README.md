@@ -15,4 +15,4 @@
 
 ## 感谢
 Wabbajack：https://github.com/wabbajack-tools/wabbajack
-Nexus No Wait：https://greasyfork.org/fr/scripts/394039-nexus-no-wait/code
+Nexus No Wait：https://greasyfork.org/zh-CN/scripts/394039-nexus-no-wait/code

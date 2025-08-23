@@ -1,0 +1,10 @@
+{
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "triggerTaskOnSave.on": false, // 存在Bug，不用重载
+    "triggerTaskOnSave.tasks": {
+        "reload plugin": [
+            "*.py"
+        ]
+    }
+}
