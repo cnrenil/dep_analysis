@@ -11,8 +11,8 @@ import time
 import gzip
 import queue
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-from urllib.parse import urlparse, urlunparse
+from typing import Dict, Any, List, Optional, Tuple, Iterator
+from urllib.parse import urlparse, urlunparse, parse_qs
 
 try:
     from PyQt6.QtWidgets import QApplication
@@ -68,6 +68,8 @@ class WabbajackInstaller:
         self._eta_reporter_thread = None
         self._directive_processing_active = False
         self._progress_save_lock = threading.Lock()
+        self._progress_data: Dict[str, Any] = {}
+
 
     def _check_stop_signal(self):
         """检查是否收到了停止信号，如果收到则抛出异常。"""
@@ -76,7 +78,6 @@ class WabbajackInstaller:
 
     def _put_result(self, type: str, data: Any):
         """向UI线程安全地发送结果。"""
-        # 允许关键的完成/清理信号在任何情况下都能发送
         if type in ['wabbajack_complete', 'wabbajack_download_update'] or not self._stop_requested.is_set():
             self.result_queue.put({'type': type, 'data': data})
 
@@ -86,7 +87,7 @@ class WabbajackInstaller:
             self._progress_state = {
                 'total_size': 0,
                 'total_downloaded': 0,
-                'workers': {} # worker_id -> {'file': '', 'downloaded': 0, 'total': 0, 'speed': 0}
+                'workers': {} 
             }
 
     def _report_progress(self):
@@ -112,6 +113,8 @@ class WabbajackInstaller:
             self.progress_file_path = self.install_path / "wabbajack_progress.json"
             self.parse_only_mode = parse_only
 
+            self._progress_data = self._load_progress()
+
             if not self.wabbajack_file_path.exists():
                 raise FileNotFoundError(self.__tr("Wabbajack文件未找到。"))
 
@@ -133,6 +136,10 @@ class WabbajackInstaller:
                 log.info(self.__tr("“仅测试解析”模式已完成模拟流程。"))
             else:
                 log.info(self.__tr("Wabbajack整合包已成功安装！"))
+                if self.progress_file_path and self.progress_file_path.exists():
+                    os.remove(self.progress_file_path)
+                    log.info(self.__tr("安装成功，已删除临时进度文件。"))
+
 
             self._put_result('wabbajack_complete', {'success': True, 'parse_only': self.parse_only_mode})
 
@@ -167,6 +174,65 @@ class WabbajackInstaller:
         for archive in self.modlist_data.get("Archives", []):
             self.archive_hashes[archive["Hash"]] = archive["Name"]
 
+    def _task_generator(self, archives_to_download: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
+        """
+        一个生成器，作为生产者。它会立即产出非Nexus下载任务，
+        然后按照规则（检查缓存、10秒延迟）逐个获取Nexus链接并产出HTTP下载任务。
+        """
+        nexus_archives = [a for a in archives_to_download if a["State"]["$type"].split(',')[0] == "NexusDownloader"]
+        other_archives = [a for a in archives_to_download if a["State"]["$type"].split(',')[0] != "NexusDownloader"]
+
+        log.info(self.__tr("阶段 1: 正在提交 {count} 个非Nexus直接下载任务...").format(count=len(other_archives)))
+        for archive in other_archives:
+            yield archive
+        
+        if nexus_archives:
+            log.info(self.__tr("阶段 2: 开始获取 {count} 个Nexus下载链接并提交... (链接获取将串行并有延迟)").format(count=len(nexus_archives)))
+        
+        for i, archive in enumerate(nexus_archives):
+            self._check_stop_signal()
+
+            if i > 0:
+                log.debug(self.__tr("为减轻Nexus服务器负担，强制等待10秒..."))
+                for _ in range(10):
+                    time.sleep(1)
+                    self._check_stop_signal()
+            
+            log.debug(self.__tr("正在处理 {name} ({num}/{total})...").format(name=archive['Name'], num=i+1, total=len(nexus_archives)))
+            
+            download_url = None
+            archive_hash = archive["Hash"]
+            cached_url_info = self._progress_data.get('resolved_urls', {}).get(archive_hash)
+
+            if cached_url_info and time.time() < cached_url_info.get('expires', 0):
+                download_url = cached_url_info['url']
+                log.info(self.__tr("发现有效的缓存链接，将直接使用。"))
+            else:
+                try:
+                    download_url = self._get_nexus_download_url(archive['State'])
+                    parsed_url = urlparse(download_url)
+                    query_params = parse_qs(parsed_url.query)
+                    if 'expires' in query_params:
+                        expires_timestamp = int(query_params['expires'][0])
+                        safe_expires = expires_timestamp - 3600 # 减去一小时作为安全缓冲
+                        self._progress_data.setdefault('resolved_urls', {})[archive_hash] = {
+                            'url': download_url,
+                            'expires': safe_expires
+                        }
+                        self._save_progress(self._progress_data)
+                except Exception as e:
+                    log.error(self.__tr("获取 {name} 的下载链接失败: {error}, 该文件将被跳过。").format(name=archive['Name'], error=e))
+                    yield {"$type": "ErrorState", **archive}
+                    continue
+
+            http_task = archive.copy()
+            http_task['State'] = {
+                "$type": "HttpDownloader, Wabbajack.Lib",
+                "Url": download_url
+            }
+            yield http_task
+
+
     def download_archives(self):
         """使用生产者-消费者模式并行下载所有文件。"""
         all_archives = self.modlist_data.get("Archives", [])
@@ -175,17 +241,32 @@ class WabbajackInstaller:
         
         log.info(self.__tr("阶段 0: 正在检查文件..."))
         self._put_result('wabbajack_phase_start', {'phase': 'checking', 'total': len(all_archives)})
-        for i, archive in enumerate(all_archives):
-            self._check_stop_signal()
-            target_path = self.download_path / archive["Name"]
-            if not (target_path.exists() and self.verify_hash(target_path, archive["Hash"])):
-                archives_to_download.append(archive)
-            else:
-                log.info(f"{self.__tr('文件已存在且校验通过，跳过')}: {archive['Name']}")
-                self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
-                completed_tasks += 1
-                self._put_result('wabbajack_task_progress', {'current': completed_tasks, 'total': len(all_archives)})
         
+        verified_files = self._progress_data.get('verified_archives', {})
+        needs_save = False
+
+        for archive in all_archives:
+            self._check_stop_signal()
+            archive_hash = archive["Hash"]
+            target_path = self.download_path / archive["Name"]
+            
+            if archive_hash in verified_files and Path(verified_files[archive_hash]).exists():
+                 log.debug(f"{self.__tr('文件已在进度文件中标记为已验证，跳过')}: {archive['Name']}")
+            elif target_path.exists() and self.verify_hash(target_path, archive_hash):
+                log.debug(f"{self.__tr('文件已存在且校验通过，跳过')}: {archive['Name']}")
+                self._progress_data.setdefault('verified_archives', {})[archive_hash] = str(target_path)
+                needs_save = True
+            else:
+                archives_to_download.append(archive)
+                continue
+            
+            self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
+            completed_tasks += 1
+            self._put_result('wabbajack_task_progress', {'current': completed_tasks, 'total': len(all_archives)})
+        
+        if needs_save:
+            self._save_progress(self._progress_data)
+
         if not archives_to_download:
             log.info(self.__tr("所有文件均已存在或无需下载。"))
             return
@@ -199,53 +280,24 @@ class WabbajackInstaller:
         self._progress_reporter_thread = threading.Thread(target=self._report_progress, daemon=True)
         self._progress_reporter_thread.start()
         
-        nexus_archives = [a for a in archives_to_download if a["State"]["$type"].split(',')[0] == "NexusDownloader"]
-        other_archives = [a for a in archives_to_download if a["State"]["$type"].split(',')[0] != "NexusDownloader"]
-
         total_tasks = len(all_archives)
         self._put_result('wabbajack_phase_start', {'phase': 'downloading', 'total': total_tasks})
         
+        log.info(self.__tr("阶段 3: 正在并行下载所有文件... (链接获取与文件下载将同时进行)"))
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.settings.MAX_WORKERS, thread_name_prefix="WJ-Worker") as executor:
+            task_generator = self._task_generator(archives_to_download)
+            
             futures = {
-                executor.submit(self.download_single_archive, archive, completed_tasks + i + 1, total_tasks): archive
-                for i, archive in enumerate(other_archives)
+                executor.submit(self.download_single_archive, task, completed_tasks + i + 1, total_tasks): task
+                for i, task in enumerate(task_generator)
             }
             
-            # 在主工作线程中串行获取Nexus链接，然后提交到线程池
-            log.info(self.__tr("阶段 1: 正在串行获取Nexus下载链接..."))
-            for i, archive in enumerate(nexus_archives):
-                self._check_stop_signal()
-
-                # 从第二个链接开始，增加10秒延迟
-                if i > 0:
-                    log.debug(self.__tr("为减轻Nexus服务器负担，强制等待10秒..."))
-                    for _ in range(10):
-                        time.sleep(1)
-                        self._check_stop_signal() # 在等待期间也检查停止信号
-
-                log.info(self.__tr("正在获取 {name} 的链接 ({num}/{total})...").format(name=archive['Name'], num=i+1, total=len(nexus_archives)))
-                try:
-                    download_url = self._get_nexus_download_url(archive['State'])
-                    http_task = archive.copy()
-                    http_task['State'] = {
-                        "$type": "HttpDownloader, Wabbajack.Lib",
-                        "Url": download_url
-                    }
-                    # 提交到线程池
-                    future = executor.submit(self.download_single_archive, http_task, completed_tasks + len(other_archives) + i + 1, total_tasks)
-                    futures[future] = http_task
-                except Exception as e:
-                    log.error(self.__tr("获取 {name} 的下载链接失败: {error}").format(name=archive['Name'], error=e))
-                    self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Error'})
-            
-            log.info(self.__tr("阶段 2: 正在并行下载所有文件..."))
             for future in concurrent.futures.as_completed(futures):
                 self._check_stop_signal()
                 try:
                     future.result()
                 except InstallCancelledError:
-                    # 取消所有剩余任务
-                    for f in futures: f.cancel()
+                    for f in futures.keys(): f.cancel()
                     raise
                 except Exception as e:
                     archive_name = futures[future]["Name"]
@@ -280,20 +332,23 @@ class WabbajackInstaller:
         self._check_stop_signal()
         worker_id = threading.current_thread().name
         archive_name = archive["Name"]
+        archive_hash = archive["Hash"]
         state = archive["State"]
         downloader_type = state["$type"].split(',')[0]
         
         self._put_result('wabbajack_task_progress', {'current': current_task_num, 'total': total_tasks})
 
+        if downloader_type == "ErrorState":
+            self._put_result('wabbajack_archive_progress', {'name': archive_name, 'status': 'Error'})
+            return "Error"
+
         if self.parse_only_mode:
             log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟下载')} {archive_name} ({downloader_type})")
             total_size = archive.get("Size", 1024 * 1024)
             
-            sim_speed = 30.0 # 默认模拟速度
-            if downloader_type == "GameFileSourceDownloader":
-                sim_speed = 300.0 # 模拟本地复制速度
-            elif downloader_type == "NexusDownloader" or state.get("Url", "").startswith("https://www.nexusmods.com"):
-                sim_speed = 5.0 # 模拟N网慢速下载
+            sim_speed = 30.0
+            if downloader_type == "GameFileSourceDownloader": sim_speed = 300.0
+            elif downloader_type == "NexusDownloader" or state.get("Url", "").startswith("https://www.nexusmods.com"): sim_speed = 5.0
             
             try:
                 self._simulate_download(worker_id, archive_name, total_size, sim_speed)
@@ -301,15 +356,11 @@ class WabbajackInstaller:
                 self._clear_worker_progress(worker_id)
 
             log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟下载完成')}: {archive_name}")
-            self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': "Parse Only"})
+            self._put_result('wabbajack_archive_progress', {'name': archive_name, 'status': "Parse Only"})
             return "Parse Only"
 
         target_path = self.download_path / archive_name
         
-        if target_path.exists() and self.verify_hash(target_path, archive["Hash"]):
-             self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
-             return "Skipped"
-
         downloader_map = {
             "HttpDownloader": self._download_http,
             "GameFileSourceDownloader": self._copy_game_file,
@@ -318,11 +369,12 @@ class WabbajackInstaller:
 
         result = "Error"
         try:
-            # NexusDownloader 任务已经被转换为 HttpDownloader
             if downloader_type in downloader_map:
                 downloader_map[downloader_type](state, target_path, worker_id)
-                if self.verify_hash(target_path, archive["Hash"]):
+                if self.verify_hash(target_path, archive_hash):
                     result = "Downloaded"
+                    self._progress_data.setdefault('verified_archives', {})[archive_hash] = str(target_path)
+                    self._save_progress(self._progress_data)
                     log.debug(f"{self.__tr('下载完成')}: {archive_name}")
                 else:
                     log.error(f"{archive_name} {self.__tr('下载后哈希校验失败！')}")
@@ -336,11 +388,10 @@ class WabbajackInstaller:
                 log.error(f"{self.__tr('下载')} {archive_name} {self.__tr('时出错')}: {e}", exc_info=True)
             target_path.unlink(missing_ok=True)
             result = self.__tr("错误")
-            # 如果是取消异常，重新抛出以中断上层循环
             if isinstance(e, InstallCancelledError):
                 raise
         
-        self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': result})
+        self._put_result('wabbajack_archive_progress', {'name': archive_name, 'status': result})
         return result
 
     def _update_download_progress(self, worker_id, file_name, downloaded, total, chunk_size):
@@ -481,7 +532,6 @@ class WabbajackInstaller:
         if not page:
             raise ConnectionError(self.__tr("Playwright页面不可用。"))
         
-        # 导航到页面以获取上下文和 game_id
         page.goto(page_url, wait_until='domcontentloaded')
         game_id = page.locator('#section').get_attribute('data-game-id')
 
@@ -490,7 +540,6 @@ class WabbajackInstaller:
 
         api_url = f"{self.settings.NEXUS_BASE_URL}/Core/Libs/Common/Managers/Downloads?GenerateDownloadUrl"
         
-        # 使用 page.evaluate 在浏览器上下文中执行 fetch，这会自动携带 cookies
         script = """
         async (args) => {
             const response = await fetch(args.apiUrl, {
@@ -503,7 +552,8 @@ class WabbajackInstaller:
                 body: `fid=${args.fileId}&game_id=${args.gameId}`
             });
             if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`API request failed with status ${response.status}: ${errorText}`);
             }
             return await response.json();
         }
@@ -524,15 +574,11 @@ class WabbajackInstaller:
 
     def _download_nexus(self, state: Dict[str, Any], target_path: Path, worker_id: str):
         """处理Nexus下载，先获取链接再用requests下载。"""
-        # 这个方法现在实际上不会被直接调用，因为Nexus任务被转换了
-        # 但保留它以防未来的直接调用需求
         log.debug(f"({worker_id}) {self.__tr('正在准备从Nexus下载')}: {target_path.name}")
         try:
-            # 步骤1: 获取下载链接
             download_url = self._get_nexus_download_url(state)
             log.debug(f"({worker_id}) 获取到下载链接: {download_url}")
             
-            # 步骤2: 使用HTTP下载器下载
             http_state = {"Url": download_url}
             self._download_http(http_state, target_path, worker_id)
         except Exception as e:
@@ -567,26 +613,42 @@ class WabbajackInstaller:
         return computed_hash == b64_hash
 
     def _load_progress(self) -> dict:
-        """加载安装进度。"""
+        """加载安装进度，如果文件不存在则返回一个空的默认结构。"""
+        default_progress = {
+            'last_completed_directive': -1,
+            'verified_archives': {},
+            'resolved_urls': {}
+        }
         if self.parse_only_mode:
-            return {'last_completed_directive': -1}
+            return default_progress
         if self.progress_file_path and self.progress_file_path.exists():
             try:
                 with open(self.progress_file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    for key, value in default_progress.items():
+                        data.setdefault(key, value)
+                    return data
             except (json.JSONDecodeError, IOError):
                 log.warning(self.__tr("进度文件损坏，将重新开始。"))
-        return {'last_completed_directive': -1}
+        return default_progress
+
 
     def _save_progress(self, progress_data: dict):
-        """保存安装进度。"""
+        """原子地保存安装进度。"""
         if self.parse_only_mode or not self.progress_file_path:
             return
-        try:
-            with open(self.progress_file_path, 'w', encoding='utf-8') as f:
-                json.dump(progress_data, f)
-        except IOError as e:
-            log.error(f"{self.__tr('无法保存进度')}: {e}")
+        
+        temp_path = self.progress_file_path.with_suffix('.tmp')
+        with self._progress_save_lock:
+            try:
+                with open(temp_path, 'w', encoding='utf-8') as f:
+                    json.dump(progress_data, f, indent=4)
+                os.replace(temp_path, self.progress_file_path)
+            except IOError as e:
+                log.error(f"{self.__tr('无法保存进度')}: {e}")
+            finally:
+                if temp_path.exists():
+                    os.remove(temp_path)
 
     def _report_directive_eta(self, start_time: float, total_directives: int, start_index: int):
         """定期报告指令处理的预计剩余时间。"""
@@ -652,8 +714,7 @@ class WabbajackInstaller:
             log.info(self.__tr("没有需要处理的安装指令。"))
             return
             
-        progress = self._load_progress()
-        start_index = progress.get('last_completed_directive', -1) + 1
+        start_index = self._progress_data.get('last_completed_directive', -1) + 1
         
         log.info(self.__tr("最终阶段: 正在安装文件..."))
         self._put_result('wabbajack_phase_start', {'phase': 'installing', 'total': len(directives)})
@@ -665,7 +726,6 @@ class WabbajackInstaller:
         start_time = time.time()
         self._directive_processing_active = True
         completed_indices = set(range(start_index))
-        last_consecutive_completed = start_index - 1
         
         self._eta_reporter_thread = threading.Thread(
             target=self._report_directive_eta, 
@@ -691,13 +751,14 @@ class WabbajackInstaller:
                             
                             with self._progress_save_lock:
                                 completed_indices.add(index)
-                                with self._progress_lock:
-                                    self._directives_processed_count = len(completed_indices)
+                                last_consecutive = self._progress_data.get('last_completed_directive', -1)
+                                while (last_consecutive + 1) in completed_indices:
+                                    last_consecutive += 1
+                                self._progress_data['last_completed_directive'] = last_consecutive
+                                self._save_progress(self._progress_data)
 
-                                while (last_consecutive_completed + 1) in completed_indices:
-                                    last_consecutive_completed += 1
-                                
-                                self._save_progress({'last_completed_directive': last_consecutive_completed})
+                            with self._progress_lock:
+                                self._directives_processed_count = len(completed_indices)
 
                             self._put_result('wabbajack_task_progress', {'current': self._directives_processed_count, 'total': len(directives)})
                         
