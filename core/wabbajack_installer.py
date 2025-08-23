@@ -168,24 +168,23 @@ class WabbajackInstaller:
             self.archive_hashes[archive["Hash"]] = archive["Name"]
 
     def download_archives(self):
-        """按逻辑阶段管理所有必需文件的下载。"""
+        """使用生产者-消费者模式并行下载所有文件。"""
         all_archives = self.modlist_data.get("Archives", [])
         archives_to_download = []
+        completed_tasks = 0
         
         log.info(self.__tr("阶段 0: 正在检查文件..."))
         self._put_result('wabbajack_phase_start', {'phase': 'checking', 'total': len(all_archives)})
         for i, archive in enumerate(all_archives):
             self._check_stop_signal()
-            self._put_result('wabbajack_task_progress', {'current': i + 1, 'total': len(all_archives)})
             target_path = self.download_path / archive["Name"]
             if not (target_path.exists() and self.verify_hash(target_path, archive["Hash"])):
                 archives_to_download.append(archive)
             else:
-                if self.parse_only_mode:
-                    archives_to_download.append(archive)
-                else:
-                    log.info(f"{self.__tr('文件已存在且校验通过，跳过')}: {archive['Name']}")
-                    self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
+                log.info(f"{self.__tr('文件已存在且校验通过，跳过')}: {archive['Name']}")
+                self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Skipped'})
+                completed_tasks += 1
+                self._put_result('wabbajack_task_progress', {'current': completed_tasks, 'total': len(all_archives)})
         
         if not archives_to_download:
             log.info(self.__tr("所有文件均已存在或无需下载。"))
@@ -200,39 +199,57 @@ class WabbajackInstaller:
         self._progress_reporter_thread = threading.Thread(target=self._report_progress, daemon=True)
         self._progress_reporter_thread.start()
         
-        total_tasks = len(archives_to_download)
+        nexus_archives = [a for a in archives_to_download if a["State"]["$type"].split(',')[0] == "NexusDownloader"]
+        other_archives = [a for a in archives_to_download if a["State"]["$type"].split(',')[0] != "NexusDownloader"]
+
+        total_tasks = len(all_archives)
         self._put_result('wabbajack_phase_start', {'phase': 'downloading', 'total': total_tasks})
         
-        task_queue = queue.Queue()
-        for i, archive in enumerate(archives_to_download):
-            task_queue.put((archive, i + 1, total_tasks))
-
-        log.info(self.__tr("阶段 1: 开始并行下载所有文件..."))
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.settings.MAX_WORKERS, thread_name_prefix="WJ-Worker") as executor:
             futures = {
-                executor.submit(self.download_single_archive, *task_queue.get()): None
-                for _ in range(min(self.settings.MAX_WORKERS, task_queue.qsize()))
+                executor.submit(self.download_single_archive, archive, completed_tasks + i + 1, total_tasks): archive
+                for i, archive in enumerate(other_archives)
             }
-
-            while futures:
+            
+            # 在主工作线程中串行获取Nexus链接，然后提交到线程池
+            log.info(self.__tr("阶段 1: 正在串行获取Nexus下载链接..."))
+            for i, archive in enumerate(nexus_archives):
                 self._check_stop_signal()
-                
-                done, _ = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
-                
-                for future in done:
-                    futures.pop(future)
-                    
-                    try:
-                        future.result()
-                    except InstallCancelledError:
-                        # 捕获从worker传来的取消信号并重新抛出，以中断整个下载流程
-                        raise
-                    except Exception as e:
-                        log.error(f"一个下载任务失败: {e}")
 
-                    if not task_queue.empty():
-                        self._check_stop_signal()
-                        futures[executor.submit(self.download_single_archive, *task_queue.get())] = None
+                # 从第二个链接开始，增加10秒延迟
+                if i > 0:
+                    log.debug(self.__tr("为减轻Nexus服务器负担，强制等待10秒..."))
+                    for _ in range(10):
+                        time.sleep(1)
+                        self._check_stop_signal() # 在等待期间也检查停止信号
+
+                log.info(self.__tr("正在获取 {name} 的链接 ({num}/{total})...").format(name=archive['Name'], num=i+1, total=len(nexus_archives)))
+                try:
+                    download_url = self._get_nexus_download_url(archive['State'])
+                    http_task = archive.copy()
+                    http_task['State'] = {
+                        "$type": "HttpDownloader, Wabbajack.Lib",
+                        "Url": download_url
+                    }
+                    # 提交到线程池
+                    future = executor.submit(self.download_single_archive, http_task, completed_tasks + len(other_archives) + i + 1, total_tasks)
+                    futures[future] = http_task
+                except Exception as e:
+                    log.error(self.__tr("获取 {name} 的下载链接失败: {error}").format(name=archive['Name'], error=e))
+                    self._put_result('wabbajack_archive_progress', {'name': archive['Name'], 'status': 'Error'})
+            
+            log.info(self.__tr("阶段 2: 正在并行下载所有文件..."))
+            for future in concurrent.futures.as_completed(futures):
+                self._check_stop_signal()
+                try:
+                    future.result()
+                except InstallCancelledError:
+                    # 取消所有剩余任务
+                    for f in futures: f.cancel()
+                    raise
+                except Exception as e:
+                    archive_name = futures[future]["Name"]
+                    log.error(f"下载 {archive_name} 时任务失败: {e}")
 
     def _simulate_download(self, worker_id: str, archive_name: str, total_size: int, speed_mbps: float):
         """用真实的进度更新来模拟下载过程。"""
@@ -272,11 +289,11 @@ class WabbajackInstaller:
             log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟下载')} {archive_name} ({downloader_type})")
             total_size = archive.get("Size", 1024 * 1024)
             
-            sim_speed = 1000.0 # 默认模拟速度
+            sim_speed = 30.0 # 默认模拟速度
             if downloader_type == "GameFileSourceDownloader":
-                sim_speed = 3000.0 # 模拟本地复制速度
-            elif downloader_type == "NexusDownloader":
-                sim_speed = 500.0 # 模拟N网慢速下载
+                sim_speed = 300.0 # 模拟本地复制速度
+            elif downloader_type == "NexusDownloader" or state.get("Url", "").startswith("https://www.nexusmods.com"):
+                sim_speed = 5.0 # 模拟N网慢速下载
             
             try:
                 self._simulate_download(worker_id, archive_name, total_size, sim_speed)
@@ -295,13 +312,13 @@ class WabbajackInstaller:
 
         downloader_map = {
             "HttpDownloader": self._download_http,
-            "NexusDownloader": self._download_nexus,
             "GameFileSourceDownloader": self._copy_game_file,
             "WabbajackCDNDownloader+State": self._download_wabbajack_cdn,
         }
 
         result = "Error"
         try:
+            # NexusDownloader 任务已经被转换为 HttpDownloader
             if downloader_type in downloader_map:
                 downloader_map[downloader_type](state, target_path, worker_id)
                 if self.verify_hash(target_path, archive["Hash"]):
@@ -455,8 +472,8 @@ class WabbajackInstaller:
         raise IOError(f"Failed to download part {part_info['Index']} for {base_url} after multiple retries.")
 
     def _get_nexus_download_url(self, state: Dict[str, Any]) -> str:
-        """使用Playwright获取真实的Nexus下载链接。"""
-        mod_id, file_id, game_name = state["ModID"], state["FileID"], state["GameName"]
+        """使用Playwright和API调用来获取真实的Nexus下载链接，跳过等待时间。"""
+        mod_id, file_id, game_name = state["ModID"], state["FileID"], state["GameName"].lower()
         page_url = f"https://www.nexusmods.com/{game_name}/mods/{mod_id}?tab=files&file_id={file_id}"
         log.debug(f"正在为 {mod_id}/{file_id} 获取下载链接...")
 
@@ -464,24 +481,51 @@ class WabbajackInstaller:
         if not page:
             raise ConnectionError(self.__tr("Playwright页面不可用。"))
         
-        page.goto(page_url)
+        # 导航到页面以获取上下文和 game_id
+        page.goto(page_url, wait_until='domcontentloaded')
+        game_id = page.locator('#section').get_attribute('data-game-id')
+
+        if not game_id:
+            raise ValueError("Could not determine game_id from page.")
+
+        api_url = f"{self.settings.NEXUS_BASE_URL}/Core/Libs/Common/Managers/Downloads?GenerateDownloadUrl"
         
-        # 查找包含下载密钥的链接
-        download_link_selector = f'a[href*="/mods/{mod_id}/files/{file_id}?key="]'
-        page.wait_for_selector(download_link_selector, timeout=30000)
-        download_url = page.locator(download_link_selector).first.get_attribute('href')
+        # 使用 page.evaluate 在浏览器上下文中执行 fetch，这会自动携带 cookies
+        script = """
+        async (args) => {
+            const response = await fetch(args.apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Referer': args.pageUrl
+                },
+                body: `fid=${args.fileId}&game_id=${args.gameId}`
+            });
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            return await response.json();
+        }
+        """
         
-        if not download_url:
-            raise ValueError("Could not find the download link with a key.")
-            
-        # 拼接为完整URL
-        if download_url.startswith('/'):
-            download_url = f"https://www.nexusmods.com{download_url}"
+        api_response = page.evaluate(script, {
+            "apiUrl": api_url,
+            "pageUrl": page_url,
+            "fileId": file_id,
+            "gameId": game_id
+        })
+
+        if api_response and api_response.get('url'):
+            log.debug(api_response['url'])
+            return api_response['url']
         
-        return download_url
+        raise ValueError("API response did not contain a valid URL.")
 
     def _download_nexus(self, state: Dict[str, Any], target_path: Path, worker_id: str):
         """处理Nexus下载，先获取链接再用requests下载。"""
+        # 这个方法现在实际上不会被直接调用，因为Nexus任务被转换了
+        # 但保留它以防未来的直接调用需求
         log.debug(f"({worker_id}) {self.__tr('正在准备从Nexus下载')}: {target_path.name}")
         try:
             # 步骤1: 获取下载链接
