@@ -31,7 +31,7 @@ except ImportError:
 from .settings import PluginSettings
 from ..utils.playwright_manager import PlaywrightManager
 from ..utils.helpers import _find_chinese_font, _extract_mod_id_from_url
-from .. import logging as plugin_logging
+from .. import logger as plugin_logging
 
 log = plugin_logging.get_logger(__name__)
 

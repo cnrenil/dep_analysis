@@ -13,7 +13,7 @@
 
 import os
 import sys
-from . import logging as plugin_logging
+from . import logger as plugin_logging
 
 log = plugin_logging.get_logger(__name__)
 

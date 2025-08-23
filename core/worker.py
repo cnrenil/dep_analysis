@@ -2,13 +2,12 @@
 
 import threading
 import queue
-import logging
 
 from .analyzer import ModAnalyzer
 from .settings import PluginSettings
 from .wabbajack_installer import WabbajackInstaller
 from ..utils.playwright_manager import PlaywrightManager
-from .. import logging as plugin_logging # 导入新的日志模块
+from .. import logger as plugin_logging # 导入新的日志模块
 
 log = plugin_logging.get_logger(__name__)
 
@@ -139,5 +138,6 @@ class WorkerThread(threading.Thread):
         elif task_type == 'install_wabbajack':
             self.wabbajack_installer.run_installation(
                 task.get('file_path'), task.get('install_path'), 
-                task.get('download_path'), task.get('parse_only')
+                task.get('download_path'), task.get('parse_only'),
+                task.get('download_only')
             )

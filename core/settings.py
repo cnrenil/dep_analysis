@@ -3,8 +3,8 @@
 import os
 import re
 import json
-import logging
 from pathlib import Path
+from .. import logger as plugin_logging
 
 try:
     import mobase
@@ -14,7 +14,7 @@ except ImportError:
         def managedGame(self): pass
         def pluginDataPath(self): return "."
 
-log = logging.getLogger(__name__)
+log = plugin_logging.get_logger(__name__)
 
 class PluginSettings:
     """集中管理所有配置项，并处理从MO2动态获取的路径。"""

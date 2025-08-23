@@ -13,22 +13,59 @@ import queue
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple, Iterator
 from urllib.parse import urlparse, urlunparse, parse_qs
+import configparser
+import re # 确保 re 已导入
 
 try:
     from PyQt6.QtWidgets import QApplication
     import requests
     import bsdiff4
     import xxhash
+    from patchright.sync_api import TimeoutError as PlaywrightTimeoutError
+    from lxml import html as lxml_html
+    # FIX: 导入处理 7z 和 RAR 的库
+    import py7zr
+    import rarfile
 except ImportError:
     class QApplication:
         @staticmethod
         def translate(context: str, text: str) -> str: return text
+    class PlaywrightTimeoutError(Exception): pass
+    class lxml_html:
+        @staticmethod
+        def fromstring(s): return None
+    # 为 py7zr 和 rarfile 添加桩代码，以防环境不完整
+    class py7zr: pass
+    class rarfile: pass
+
 
 from ..utils.playwright_manager import PlaywrightManager
 from ..core.settings import PluginSettings
-from .. import logging as plugin_logging
+from .. import logger as plugin_logging
 
 log = plugin_logging.get_logger(__name__)
+
+# ... (WJ_GAME_NAME_TO_NEXUS_NAME, GITHUB_MIRRORS, DOMAIN_REMAPS 字典保持不变) ...
+# Mapping from Wabbajack's GameName enum to Nexus URL slugs
+WJ_GAME_NAME_TO_NEXUS_NAME = {
+    "Morrowind": "morrowind", "Oblivion": "oblivion", "Fallout3": "fallout3",
+    "FalloutNewVegas": "newvegas", "Skyrim": "skyrim", "SkyrimSpecialEdition": "skyrimspecialedition",
+    "Fallout4": "fallout4", "SkyrimVR": "skyrimspecialedition", "Enderal": "enderal",
+    "EnderalSpecialEdition": "enderalspecialedition", "Fallout4VR": "fallout4",
+    "DarkestDungeon": "darkestdungeon", "Dishonored": "dishonored", "Witcher": "witcher",
+    "Witcher3": "witcher3", "StardewValley": "stardewvalley", "KingdomComeDeliverance": "kingdomcomedeliverance",
+    "MechWarrior5Mercenaries": "mechwarrior5mercenaries", "NoMansSky": "nomanssky",
+    "DragonAgeOrigins": "dragonage", "DragonAge2": "dragonage2", "DragonAgeInquisition": "dragonageinquisition",
+    "KerbalSpaceProgram": "kerbalspaceprogram", "Terraria": "terraria", "Cyberpunk2077": "cyberpunk2077",
+    "Sims4": "thesims4", "DragonsDogma": "dragonsdogma", "KarrynsPrison": "karrynsprison",
+    "Valheim": "valheim", "MountAndBlade2Bannerlord": "mountandblade2bannerlord",
+    "FinalFantasy7Remake": "finalfantasy7remake", "BaldursGate3": "baldursgate3",
+    "Starfield": "starfield", "SevenDaysToDie": "7daystodie", "OblivionRemastered": "oblivionremastered",
+    "Fallout76": "fallout76", "Fallout4London": "fallout4london",
+    "Warhammer40kDarktide": "warhammer40kdarktide", "Kotor2": "kotor2", "VtMB": "vampirebloodlines",
+    "ModdingTools": "site",
+}
+
 
 # Github镜像列表
 GITHUB_MIRRORS = [
@@ -89,7 +126,6 @@ class WabbajackInstaller:
         self._progress_data: Dict[str, Any] = {}
         self.fastest_proxy: Optional[str] = None
 
-
     def _check_stop_signal(self):
         """检查是否收到了停止信号，如果收到则抛出异常。"""
         if self._stop_requested.is_set():
@@ -123,7 +159,7 @@ class WabbajackInstaller:
             self._put_result('wabbajack_download_update', state_copy)
             time.sleep(1)
 
-    def run_installation(self, wabbajack_file: str, install_path: str, download_path: str, parse_only: bool):
+    def run_installation(self, wabbajack_file: str, install_path: str, download_path: str, parse_only: bool, download_only: bool):
         """启动完整的安装流程。"""
         try:
             self.wabbajack_file_path = Path(wabbajack_file)
@@ -140,7 +176,7 @@ class WabbajackInstaller:
             log.info(self.__tr("正在解析Wabbajack文件..."))
             self.parse_wabbajack_file()
             self._check_stop_signal()
-            
+
             if not self.parse_only_mode:
                 os.makedirs(self.install_path, exist_ok=True)
                 os.makedirs(self.download_path, exist_ok=True)
@@ -148,20 +184,28 @@ class WabbajackInstaller:
             self.download_archives()
             self._check_stop_signal()
 
-            self.process_directives()
-            self._check_stop_signal()
-            
+            if not download_only and not parse_only:
+                self.process_directives()
+                self._check_stop_signal()
+            elif download_only:
+                log.info(self.__tr("“仅下载”模式完成，已跳过安装步骤。"))
+
             if self.parse_only_mode:
                 log.info(self.__tr("“仅测试解析”模式已完成模拟流程。"))
+            elif download_only:
+                 self._put_result('wabbajack_complete', {'success': True, 'download_only': True})
+                 return # 提前返回
             else:
                 log.info(self.__tr("Wabbajack整合包已成功安装！"))
                 if self.progress_file_path and self.progress_file_path.exists():
                     os.remove(self.progress_file_path)
                     log.info(self.__tr("安装成功，已删除临时进度文件。"))
 
-
             self._put_result('wabbajack_complete', {'success': True, 'parse_only': self.parse_only_mode})
 
+        except NotImplementedError as e:
+            log.critical(str(e))
+            self._put_result('wabbajack_complete', {'success': False, 'error': str(e)})
         except InstallCancelledError:
             log.warning(self.__tr("安装已中止。"))
         except Exception as e:
@@ -228,7 +272,18 @@ class WabbajackInstaller:
                 log.info(self.__tr("发现有效的缓存链接，将直接使用。"))
             else:
                 try:
-                    download_url = self._get_nexus_download_url(archive['State'])
+                    state_info = archive["State"]
+                    game_name_enum = state_info.get("GameName")
+                    nexus_name = WJ_GAME_NAME_TO_NEXUS_NAME.get(game_name_enum, str(game_name_enum).lower())
+                    
+                    nexus_info = {
+                        "GameName": nexus_name,
+                        "ModID": state_info.get("ModID"),
+                        "FileID": state_info.get("FileID")
+                    }
+
+                    download_url = self._get_nexus_download_url(nexus_info)
+                    
                     parsed_url = urlparse(download_url)
                     query_params = parse_qs(parsed_url.query)
                     if 'expires' in query_params:
@@ -241,7 +296,7 @@ class WabbajackInstaller:
                         self._save_progress(self._progress_data)
                 except Exception as e:
                     log.error(self.__tr("获取 {name} 的下载链接失败: {error}, 该文件将被跳过。").format(name=archive['Name'], error=e))
-                    yield {"$type": "ErrorState", **archive}
+                    yield {'Hash':archive['Hash'],'Name':archive['Name'],'State':{"$type": "ErrorState"}}
                     continue
 
             http_task = archive.copy()
@@ -250,7 +305,6 @@ class WabbajackInstaller:
                 "Url": download_url
             }
             yield http_task
-
 
     def download_archives(self):
         """使用生产者-消费者模式并行下载所有文件。"""
@@ -352,7 +406,7 @@ class WabbajackInstaller:
                 downloaded = total_size
             
             self._update_download_progress(worker_id, archive_name, downloaded, total_size, chunk_size)
-
+            
     def download_single_archive(self, archive: Dict[str, Any], current_task_num: int, total_tasks: int) -> str:
         """下载单个文件并校验哈希。Worker ID由线程决定。"""
         self._check_stop_signal()
@@ -410,6 +464,10 @@ class WabbajackInstaller:
             else:
                 log.warning(f"{self.__tr('未知的下载器类型')}: {downloader_type} for {archive_name}")
                 result = self.__tr("未知下载器")
+        except FileNotFoundError as e:
+            log.error(f"{self.__tr('下载')} {archive_name} {self.__tr('时出错')}: {e}")
+            target_path.unlink(missing_ok=True)
+            result = self.__tr("错误")
         except Exception as e:
             if not isinstance(e, InstallCancelledError):
                 log.error(f"{self.__tr('下载')} {archive_name} {self.__tr('时出错')}: {e}", exc_info=True)
@@ -425,7 +483,7 @@ class WabbajackInstaller:
         """如果存在Meta信息，且meta文件不存在，则写入.meta文件。"""
         if self.parse_only_mode:
             return
-
+        
         meta_content = archive.get("Meta")
         if meta_content:
             meta_path = self.download_path / (archive["Name"] + ".meta")
@@ -448,7 +506,7 @@ class WabbajackInstaller:
 
     def _get_best_github_proxy(self):
         """测试并选择最快的Github代理，结果会缓存。"""
-        if self._progress_data.get('fastest_github_proxy'):
+        if self._progress_data.get('fastest_github_proxy') is not None:
             self.fastest_proxy = self._progress_data['fastest_github_proxy']
             if self.fastest_proxy == "github":
                 log.info(self.__tr("根据缓存，将直连Github。"))
@@ -515,7 +573,7 @@ class WabbajackInstaller:
         """从UI中清理一个已完成的工作线程。"""
         with self._progress_lock:
             self._progress_state['workers'].pop(worker_id, None)
-
+            
     def _get_remapped_url_and_headers(self, url_str: str) -> tuple[str, dict]:
         """应用WabbajackCDN域名重映射并返回新URL和请求头。"""
         parsed_url = urlparse(url_str)
@@ -527,7 +585,7 @@ class WabbajackInstaller:
             headers = {'Host': new_host}
             return new_url, headers
         return url_str, {}
-
+        
     def _download_http(self, state: Dict[str, Any], target_path: Path, worker_id: str):
         """处理标准的HTTP下载，并应用Github代理。"""
         url, headers = self._get_remapped_url_and_headers(state["Url"])
@@ -599,7 +657,7 @@ class WabbajackInstaller:
                     self._update_download_progress(worker_id, target_path.name, f.tell(), definition['Size'], len(part_data))
         finally:
             self._clear_worker_progress(worker_id)
-
+            
     def _download_cdn_part(self, base_url: str, part_info: dict) -> tuple[int, bytes]:
         """下载WabbajackCDN文件的单个分块。"""
         worker_id = threading.current_thread().name
@@ -621,69 +679,81 @@ class WabbajackInstaller:
                 log.warning(f"({worker_id}) {self.__tr('下载分块 {idx} 时出错 (尝试 {n})').format(idx=part_info['Index'], n=attempt + 1)}: {e}")
             time.sleep(self.settings.RETRY_DELAY_MS / 1000)
         raise IOError(f"Failed to download part {part_info['Index']} for {base_url} after multiple retries.")
-
-    def _get_nexus_download_url(self, state: Dict[str, Any]) -> str:
-        """使用Playwright和API调用来获取真实的Nexus下载链接，跳过等待时间。"""
-        mod_id, file_id, game_name = state["ModID"], state["FileID"], state["GameName"].lower()
+        
+    def _get_nexus_download_url(self, nexus_info: Dict[str, Any]) -> str:
+        """使用Playwright和API调用来获取真实的Nexus下载链接，内置重试机制。"""
+        mod_id, file_id, game_name = nexus_info["ModID"], nexus_info["FileID"], nexus_info["GameName"]
         page_url = f"https://www.nexusmods.com/{game_name}/mods/{mod_id}?tab=files&file_id={file_id}"
-        log.debug(f"正在为 {mod_id}/{file_id} 获取下载链接...")
-
+        log.debug(f"正在为 {mod_id}/{file_id} ({game_name}) 获取下载链接...")
+    
         page = self.playwright_manager.get_page()
         if not page:
             raise ConnectionError(self.__tr("Playwright页面不可用。"))
-        
-        page.goto(page_url, wait_until='domcontentloaded')
-        game_id = page.locator('#section').get_attribute('data-game-id')
+    
+        last_error = None
+        for attempt in range(self.settings.MAX_RETRIES):
+            if self._stop_requested.is_set(): raise InstallCancelledError("Stop requested")
+            try:
+                page.goto(page_url, wait_until='domcontentloaded', timeout=self.settings.REQUEST_TIMEOUT)
+    
+                notice_elements = page.locator('//div[@class="info-content"]/h3[starts-with(@id, "Notice")]').all()
+                if notice_elements:
+                    notice_text = notice_elements[0].text_content()
+                    raise ValueError(notice_text.strip())
+    
+                game_id = None
 
-        if not game_id:
-            raise ValueError("Could not determine game_id from page.")
-
-        api_url = f"{self.settings.NEXUS_BASE_URL}/Core/Libs/Common/Managers/Downloads?GenerateDownloadUrl"
-        
-        script = """
-        async (args) => {
-            const response = await fetch(args.apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Referer': args.pageUrl
-                },
-                body: `fid=${args.fileId}&game_id=${args.gameId}`
-            });
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API request failed with status ${response.status}: ${errorText}`);
-            }
-            return await response.json();
-        }
-        """
-        
-        api_response = page.evaluate(script, {
-            "apiUrl": api_url,
-            "pageUrl": page_url,
-            "fileId": file_id,
-            "gameId": game_id
-        })
-
-        if api_response and api_response.get('url'):
-            log.debug(api_response['url'])
-            return api_response['url']
-        
-        raise ValueError("API response did not contain a valid URL.")
-
-    def _download_nexus(self, state: Dict[str, Any], target_path: Path, worker_id: str):
-        """处理Nexus下载，先获取链接再用requests下载。"""
-        log.debug(f"({worker_id}) {self.__tr('正在准备从Nexus下载')}: {target_path.name}")
-        try:
-            download_url = self._get_nexus_download_url(state)
-            log.debug(f"({worker_id}) 获取到下载链接: {download_url}")
-            
-            http_state = {"Url": download_url}
-            self._download_http(http_state, target_path, worker_id)
-        except Exception as e:
-            log.error(f"({worker_id}) Nexus下载失败: {e}", exc_info=True)
-            raise
+                if not game_id:
+                    log.debug("正在从页面HTML中提取 game_id...")
+                    page_content = page.content()
+                    match = re.search(r'window\.current_game_id\s*=\s*(\d+);', page_content)
+                    if not match:
+                        match = re.search(r'notifications_game_id\s*=\s*(\d+);', page_content)
+                    
+                    if match:
+                        game_id = match.group(1)
+                        log.debug(f"通过正则表达式成功提取 game_id: {game_id}")
+                    else:
+                        raise ValueError("无法从页面中确定 game_id。")
+    
+                api_url = f"{self.settings.NEXUS_BASE_URL}/Core/Libs/Common/Managers/Downloads?GenerateDownloadUrl"
+                
+                script = """
+                async (args) => {
+                    const response = await fetch(args.apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', 'Referer': args.pageUrl },
+                        body: `fid=${args.fileId}&game_id=${args.gameId}`
+                    });
+                    if (!response.ok) { throw new Error(`API request failed with status ${response.status}`); }
+                    return await response.json();
+                }
+                """
+                
+                api_response = page.evaluate(script, { "apiUrl": api_url, "pageUrl": page_url, "fileId": file_id, "gameId": game_id })
+    
+                if api_response and api_response.get('url'):
+                    log.debug(api_response['url'])
+                    return api_response['url']
+                
+                raise ValueError("API response did not contain a valid URL.")
+    
+            except ValueError as e:
+                # 捕获到值错误（包括模组不可用的情况），记录后立即终止此文件的获取
+                last_error = e
+                log.warning(self.__tr("获取链接失败: {error}").format(error=e))
+                break 
+            except PlaywrightTimeoutError as e:
+                last_error = e
+                log.warning(self.__tr("获取链接失败 (尝试 {n}/{max}): {error}").format(n=attempt + 1, max=self.settings.MAX_RETRIES, error=e))
+                if attempt < self.settings.MAX_RETRIES - 1:
+                    time.sleep(self.settings.RETRY_DELAY_MS / 1000)
+            except Exception as e:
+                last_error = e
+                log.error(self.__tr("获取链接时发生意外错误: {error}").format(error=e), exc_info=True)
+                break
+    
+        raise last_error or Exception("Failed to get download URL after all retries.")
 
     def _copy_game_file(self, state: Dict[str, Any], target_path: Path, worker_id: str):
         """从游戏目录复制文件。"""
@@ -700,7 +770,7 @@ class WabbajackInstaller:
                 raise FileNotFoundError(f"{self.__tr('游戏文件未找到')}: {source_file}")
         finally:
             self._clear_worker_progress(worker_id)
-
+            
     def verify_hash(self, file_path: Path, b64_hash: str) -> bool:
         """使用xxHash64校验文件哈希。"""
         h = xxhash.xxh64()
@@ -718,7 +788,7 @@ class WabbajackInstaller:
             'last_completed_directive': -1,
             'verified_archives': {},
             'resolved_urls': {},
-            'fastest_github_proxy': None # None表示未测试
+            'fastest_github_proxy': None
         }
         if self.parse_only_mode:
             return default_progress
@@ -774,39 +844,127 @@ class WabbajackInstaller:
                         done=self._directives_processed_count, total=total_directives, eta=eta_str))
             
             time.sleep(5)
+            
+    # ** NEW: 辅助函数，用于从不同格式的压缩包中提取文件 **
+    def _extract_from_archive(self, archive_path: Path, path_in_archive: str, dest_path: Path):
+        """
+        自动检测压缩包类型 (zip, 7z, rar) 并从中提取单个文件。
+        """
+        
+        # 规范化路径，以处理 Windows 和非 Windows 风格的路径分隔符
+        normalized_path_in_archive = os.path.normpath(path_in_archive)
+
+        try:
+            # 优先使用 magic number 判断文件类型
+            with open(archive_path, 'rb') as f:
+                header = f.read(8)
+            
+            if header.startswith(b'PK\x03\x04'):
+                log.debug(f"检测到 ZIP 格式: {archive_path.name}")
+                with zipfile.ZipFile(archive_path, 'r') as zf:
+                    zf.extract(path_in_archive, dest_path.parent)
+
+            elif header.startswith(b"7z\xbc\xaf'\x1c"):
+                log.debug(f"检测到 7z 格式: {archive_path.name}")
+                with py7zr.SevenZipFile(archive_path, 'r') as z:
+                    z.extract(targets=[path_in_archive], path=dest_path.parent)
+
+            elif header.startswith(b'Rar!\x1a\x07'):
+                log.debug(f"检测到 RAR 格式: {archive_path.name}")
+                with rarfile.RarFile(archive_path) as rf:
+                    rf.extract(path_in_archive, dest_path.parent)
+            
+            # 如果 magic number 失败，则根据后缀名回退
+            elif archive_path.suffix.lower() == '.zip':
+                 log.debug(f"回退到 ZIP 格式 (根据后缀名): {archive_path.name}")
+                 with zipfile.ZipFile(archive_path, 'r') as zf:
+                    zf.extract(path_in_archive, dest_path.parent)
+
+            elif archive_path.suffix.lower() == '.7z':
+                 log.debug(f"回退到 7z 格式 (根据后缀名): {archive_path.name}")
+                 with py7zr.SevenZipFile(archive_path, 'r') as z:
+                    z.extract(targets=[path_in_archive], path=dest_path.parent)
+
+            elif archive_path.suffix.lower() == '.rar':
+                 log.debug(f"回退到 RAR 格式 (根据后缀名): {archive_path.name}")
+                 with rarfile.RarFile(archive_path) as rf:
+                    rf.extract(path_in_archive, dest_path.parent)
+
+            else:
+                raise TypeError(f"未知的压缩格式: {archive_path.name}")
+
+            # 确保最终文件名与 "To" 字段匹配
+            extracted_path = dest_path.parent / normalized_path_in_archive
+            if extracted_path.exists() and extracted_path != dest_path:
+                if dest_path.exists():
+                    os.remove(dest_path)
+                os.rename(extracted_path, dest_path)
+
+
+        except (zipfile.BadZipFile, rarfile.Error, py7zr.exceptions.ArchiveError, FileNotFoundError) as e:
+            log.error(f"从 {archive_path.name} 提取 {path_in_archive} 时出错: {e}")
+            raise
 
     def _process_single_directive(self, directive: Dict, wj_zip_handle: zipfile.ZipFile):
         """处理单个安装指令，此方法在线程池中执行。"""
         self._check_stop_signal()
         worker_id = threading.current_thread().name
         self._put_result('wabbajack_directive_update', {'worker_id': worker_id, 'directive': directive, 'active': True})
-        
-        target_rel_path = directive["To"]
-        if self.parse_only_mode:
-            log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟应用指令')} '{directive['$type']}' {self.__tr('到')} '{target_rel_path}'")
-            time.sleep(0.01)
-        else:
-            target_abs_path = self.install_path / target_rel_path
-            os.makedirs(target_abs_path.parent, exist_ok=True)
-            
-            if directive["$type"] == "FromArchive":
-                archive_hash, path_in_archive = directive["ArchiveHashPath"]
-                archive_path = self.download_path / self.archive_hashes[archive_hash]
-                with zipfile.ZipFile(archive_path, 'r') as zf, zf.open(path_in_archive) as source, open(target_abs_path, 'wb') as dest:
-                    shutil.copyfileobj(source, dest)
-            elif directive["$type"] in ["InlineFile", "RemappedInlineFile"]:
-                with wj_zip_handle.open(directive["SourceDataID"]) as source, open(target_abs_path, 'wb') as dest:
-                    shutil.copyfileobj(source, dest)
-            elif directive["$type"] == "PatchedFromArchive":
-                archive_hash, path_in_archive = directive["ArchiveHashPath"]
-                archive_path = self.download_path / self.archive_hashes[archive_hash]
-                with zipfile.ZipFile(archive_path, 'r') as zf:
-                    original_data = zf.read(path_in_archive)
-                patch_data = wj_zip_handle.read(directive["PatchID"])
-                patched_data = bsdiff4.patch(original_data, patch_data)
-                with open(target_abs_path, 'wb') as f: f.write(patched_data)
 
-        self._put_result('wabbajack_directive_update', {'worker_id': worker_id, 'directive': directive, 'active': False})
+        directive_type = directive["$type"]
+        target_rel_path = directive["To"]
+
+        try:
+            if self.parse_only_mode:
+                log.debug(f"[{self.__tr('仅解析')}] {self.__tr('模拟应用指令')} '{directive_type}' {self.__tr('到')} '{target_rel_path}'")
+                time.sleep(0.01)
+            else:
+                target_abs_path = self.install_path / target_rel_path
+                os.makedirs(target_abs_path.parent, exist_ok=True)
+
+                try:
+                    if directive_type == "FromArchive":
+                        archive_hash, path_in_archive = directive["ArchiveHashPath"]
+                        archive_path = self.download_path / self.archive_hashes[archive_hash]
+                        self._extract_from_archive(archive_path, path_in_archive, target_abs_path)
+
+                    elif directive_type in ["InlineFile", "RemappedInlineFile", "PropertyFile"]:
+                        with wj_zip_handle.open(directive["SourceDataID"]) as source, open(target_abs_path, 'wb') as dest:
+                            shutil.copyfileobj(source, dest)
+
+                    elif directive_type == "PatchedFromArchive":
+                        archive_hash, path_in_archive = directive["ArchiveHashPath"]
+                        archive_path = self.download_path / self.archive_hashes[archive_hash]
+
+                        original_data = b""
+                        # 首先尝试将压缩包作为zip文件处理
+                        try:
+                            with zipfile.ZipFile(archive_path, 'r') as zf:
+                                original_data = zf.read(path_in_archive)
+                        except (zipfile.BadZipFile, KeyError):
+                            # 如果失败，则假定它是一个非压缩文件或无法识别的压缩格式
+                            with open(archive_path, 'rb') as f:
+                                original_data = f.read()
+
+                        patch_data = wj_zip_handle.read(directive["PatchID"])
+                        patched_data = bsdiff4.patch(original_data, patch_data)
+                        with open(target_abs_path, 'wb') as f: f.write(patched_data)
+
+                    else:
+                        log.warning(self.__tr("未知的指令类型被跳过: {type} -> {target}").format(type=directive_type, target=target_rel_path))
+
+                except FileNotFoundError:
+                    archive_hash, _ = directive.get("ArchiveHashPath", ["unknown", ""])
+                    missing_file = self.archive_hashes.get(archive_hash, self.__tr("未知"))
+                    log.warning(f"指令 '{target_rel_path}' 需要的压缩包 '{missing_file}' 不存在，已跳过。")
+                    # 静默失败，让主循环继续
+
+        except Exception as e:
+            log.error(self.__tr("处理指令 {type} -> {target} 时发生错误: {error}").format(type=directive_type, target=target_rel_path, error=e), exc_info=True)
+            # 向上抛出异常，由主循环捕获
+            raise
+        finally:
+            self._put_result('wabbajack_directive_update', {'worker_id': worker_id, 'directive': directive, 'active': False})
 
     def process_directives(self):
         """使用线程池并行处理所有安装指令。"""
@@ -814,9 +972,22 @@ class WabbajackInstaller:
         if not directives:
             log.info(self.__tr("没有需要处理的安装指令。"))
             return
-            
+
+        known_directives = {
+            "FromArchive", "InlineFile", "RemappedInlineFile", 
+            "PropertyFile", "PatchedFromArchive"
+        }
+        for directive in directives:
+            if directive["$type"] not in known_directives:
+                error_msg = self.__tr(
+                    "此整合包包含当前版本不支持的指令 (例如: '{directive_type}')。\n"
+                    "这通常意味着整合包需要官方 Wabbajack 程序进行安装。\n\n"
+                    "已下载的文件路径在: {path}"
+                ).format(directive_type=directive["$type"], path=self.download_path)
+                raise NotImplementedError(error_msg)
+
         start_index = self._progress_data.get('last_completed_directive', -1) + 1
-        
+
         log.info(self.__tr("最终阶段: 正在安装文件..."))
         self._put_result('wabbajack_phase_start', {'phase': 'installing', 'total': len(directives)})
         if start_index > 0:
@@ -827,7 +998,7 @@ class WabbajackInstaller:
         start_time = time.time()
         self._directive_processing_active = True
         completed_indices = set(range(start_index))
-        
+
         self._eta_reporter_thread = threading.Thread(
             target=self._report_directive_eta, 
             args=(start_time, len(directives), start_index), 
@@ -838,7 +1009,6 @@ class WabbajackInstaller:
         try:
             with zipfile.ZipFile(self.wabbajack_file_path, 'r') as wj_zip:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=self.settings.MAX_WORKERS, thread_name_prefix="WJ-Installer") as executor:
-                    
                     futures = {
                         executor.submit(self._process_single_directive, directive, wj_zip): i
                         for i, directive in enumerate(directives) if i >= start_index
@@ -849,7 +1019,13 @@ class WabbajackInstaller:
                         index = futures[future]
                         try:
                             future.result()
-                            
+                        except Exception as e:
+                            self._check_stop_signal()
+                            directive = directives[index]
+                            log.error(f"{self.__tr('处理指令失败')} {directive['To']}: {e}", exc_info=True)
+                            self._stop_requested.set()
+                            raise InstallCancelledError(f"Failed on directive {index}") from e
+                        finally:
                             with self._progress_save_lock:
                                 completed_indices.add(index)
                                 last_consecutive = self._progress_data.get('last_completed_directive', -1)
@@ -862,13 +1038,6 @@ class WabbajackInstaller:
                                 self._directives_processed_count = len(completed_indices)
 
                             self._put_result('wabbajack_task_progress', {'current': self._directives_processed_count, 'total': len(directives)})
-                        
-                        except Exception as e:
-                            self._check_stop_signal()
-                            directive = directives[index]
-                            log.error(f"{self.__tr('处理指令失败')} {directive['To']}: {e}", exc_info=True)
-                            self._stop_requested.set()
-                            raise InstallCancelledError(f"Failed on directive {index}") from e
         finally:
             self._directive_processing_active = False
             if self._eta_reporter_thread:

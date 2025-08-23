@@ -35,7 +35,7 @@ from ..core.settings import PluginSettings
 from ..core.worker import WorkerThread
 from .widgets import SearchBar, ImageViewer, ContextMenuTreeWidget, CacheTreeItem
 from .dialogs import CorrectionDialog, RulesManagerDialog
-from .. import logging as plugin_logging
+from .. import logger as plugin_logging
 
 log = plugin_logging.get_logger(__name__)
 
@@ -325,10 +325,17 @@ class AnalyzerDialog(QDialog):
         download_path_layout.addWidget(browse_download_btn)
         setup_layout.addRow(self.__tr("下载路径:"), download_path_layout)
         
-        self.wj_parse_only_checkbox = QCheckBox(self.__tr("仅测试解析功能 (不下载或安装)"))
-        setup_layout.addRow(self.wj_parse_only_checkbox)
+        checkbox_layout = QHBoxLayout()
+        self.wj_download_only_checkbox = QCheckBox(self.__tr("仅下载文件 (不安装)"))
+        self.wj_download_only_checkbox.setChecked(True)
+        self.wj_download_only_checkbox.setToolTip(self.__tr("只下载所有必需的文件到下载路径，不执行安装指令。"))
+        self.wj_parse_only_checkbox = QCheckBox(self.__tr("仅测试解析 (不下载或安装)"))
+        self.wj_parse_only_checkbox.setToolTip(self.__tr("快速检查wabbajack文件是否能被正确解析，不进行任何实际下载或安装操作。"))
+        checkbox_layout.addWidget(self.wj_download_only_checkbox)
+        checkbox_layout.addWidget(self.wj_parse_only_checkbox)
+        setup_layout.addRow(checkbox_layout)
 
-        self.wj_install_btn = QPushButton(self.__tr("开始安装"))
+        self.wj_install_btn = QPushButton(self.__tr("开始")) # 文本改为更通用的“开始”
         self.wj_install_btn.setEnabled(False)
         setup_layout.addRow(self.wj_install_btn)
         layout.addWidget(setup_group)
@@ -345,7 +352,7 @@ class AnalyzerDialog(QDialog):
         info_layout.addWidget(self.wj_info_label)
         progress_splitter.addWidget(info_group)
         
-        progress_group = QGroupBox(self.__tr("安装进度"))
+        progress_group = QGroupBox(self.__tr("进度"))
         progress_layout = QVBoxLayout(progress_group)
         
         self.wj_task_progress_bar = QProgressBar()
@@ -381,7 +388,11 @@ class AnalyzerDialog(QDialog):
         browse_download_btn.clicked.connect(lambda: self.browse_folder(self.wj_download_path_input))
         self.wj_file_path_input.textChanged.connect(self.on_wabbajack_path_changed)
         self.wj_install_btn.clicked.connect(self.trigger_wabbajack_install)
+        # ** NEW: 连接复选框的信号，以动态更新按钮文本 **
+        self.wj_download_only_checkbox.stateChanged.connect(self.update_wabbajack_button_text)
+        self.wj_parse_only_checkbox.stateChanged.connect(self.update_wabbajack_button_text)
 
+    # ... (create_cache_tab 和 create_settings_tab 保持不变) ...
     def create_cache_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -499,7 +510,7 @@ class AnalyzerDialog(QDialog):
         self.login_btn.clicked.connect(self.trigger_login)
         self.manage_rules_btn.clicked.connect(self.open_rules_manager)
         self.save_settings_btn.clicked.connect(self.trigger_save_settings)
-
+        
     def _update_headless_labels(self, state):
         is_headless = (state == Qt.CheckState.Checked.value)
         self.headless_warning_label.setVisible(is_headless)
@@ -1329,10 +1340,24 @@ class AnalyzerDialog(QDialog):
         if text is None: text = self.wj_file_path_input.text()
         is_valid = bool(text and text.endswith(".wabbajack"))
         self.wj_install_btn.setEnabled(is_valid and self.browser_ready and not self.is_running_analysis)
+        self.update_wabbajack_button_text()
+
+    def update_wabbajack_button_text(self):
+        if self.wj_parse_only_checkbox.isChecked():
+            self.wj_install_btn.setText(self.__tr("开始解析"))
+        elif self.wj_download_only_checkbox.isChecked():
+            self.wj_install_btn.setText(self.__tr("仅下载"))
+        else:
+            QMessageBox.warning(None, "Warning","目前版本存在极其严重的bug，无法正常安装，请改用仅下载，下载完成后使用Wabbajack安装")
+            self.wj_install_btn.setText(self.__tr("开始安装"))
+        
+        self.wj_install_btn.original_text = self.wj_install_btn.text()
 
     def trigger_wabbajack_install(self):
         file_path, install_path, download_path = self.wj_file_path_input.text(), self.wj_install_path_input.text(), self.wj_download_path_input.text()
         parse_only = self.wj_parse_only_checkbox.isChecked()
+        download_only = self.wj_download_only_checkbox.isChecked()
+
         if not all([file_path, install_path, download_path]):
             QMessageBox.warning(self, self.__tr("路径不完整"), self.__tr("请填写所有路径。"))
             return
@@ -1347,7 +1372,10 @@ class AnalyzerDialog(QDialog):
                     self.on_error(f"{self.__tr('清空目录失败')}: {e}")
                     return
         self.clear_wabbajack_ui()
-        self._start_task('install_wabbajack', self.wj_install_btn, file_path=file_path, install_path=install_path, download_path=download_path, parse_only=parse_only)
+        self._start_task('install_wabbajack', self.wj_install_btn, 
+                         file_path=file_path, install_path=install_path, 
+                         download_path=download_path, parse_only=parse_only,
+                         download_only=download_only)
 
     def on_wabbajack_info_ready(self, data: dict):
         info, image_data = data.get('info', {}), data.get('image')
@@ -1464,13 +1492,18 @@ class AnalyzerDialog(QDialog):
                 self.stage_label.setText(self.__tr("解析完成！"))
                 self.wj_task_progress_bar.setValue(self.wj_task_progress_bar.maximum())
                 QMessageBox.information(self, self.__tr("成功"), self.__tr("Wabbajack文件已成功解析！"))
+            elif data.get('download_only'):
+                self.stage_label.setText(self.__tr("下载完成！"))
+                self.wj_task_progress_bar.setValue(self.wj_task_progress_bar.maximum())
+                QMessageBox.information(self, self.__tr("成功"), self.__tr("所有文件已成功下载！"))
             else:
                 self.stage_label.setText(self.__tr("安装完成！"))
                 self.wj_task_progress_bar.setValue(self.wj_task_progress_bar.maximum())
                 QMessageBox.information(self, self.__tr("成功"), self.__tr("Wabbajack整合包已成功安装！"))
         else:
-            self.stage_label.setText(self.__tr("安装失败！"))
-            self.on_error(f"{self.__tr('Wabbajack安装失败')}: {data.get('error', 'Unknown error')}")
+            self.stage_label.setText(self.__tr("失败！"))
+            self.on_error(f"{self.__tr('Wabbajack操作失败')}: {data.get('error', 'Unknown error')}")
+
 
     def closeEvent(self, event):
         log.info(self.__tr("正在关闭插件窗口..."))
