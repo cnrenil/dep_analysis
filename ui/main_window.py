@@ -840,6 +840,9 @@ class AnalyzerDialog(QDialog):
         tree.addTopLevelItem(item)
 
     def on_analysis_complete(self, analysis_type, data):
+        if analysis_type == "full_analysis":
+            self.last_full_analysis_data = data
+
         button_map = {
             "single_mod": self.analyze_single_btn, "graph": self.generate_graph_btn,
             "full_analysis": self.analyze_full_btn, "translations": self.find_missing_trans_btn, 
@@ -847,6 +850,7 @@ class AnalyzerDialog(QDialog):
         }
         if active_button := button_map.get(analysis_type):
             self._toggle_ui_state(False, active_button)
+        
         if analysis_type == "single_mod":
             self.clear_single_mod_ui()
             if data and not data.get("error"):
@@ -867,11 +871,10 @@ class AnalyzerDialog(QDialog):
                         break
             self.update_progress(1, 1, self.__tr("依赖关系图生成完成！"))
         elif analysis_type == "full_analysis":
-            self.last_full_analysis_data = data
-            self.export_html_btn.setEnabled(bool(data and "error" not in data))
             if data and "error" in data: self.on_error(self.__tr("无法生成分析报告。"))
             elif data:
                 self.populate_full_analysis_results(data)
+                self.export_html_btn.setEnabled(True)
                 self.update_progress(1, 1, self.__tr("完整分析报告生成完毕！"))
         elif analysis_type == "translations":
             self.populate_translations_tree(data)
@@ -1308,7 +1311,7 @@ class AnalyzerDialog(QDialog):
         if missing_report := data.get("missing_report"):
             html += "<h2>诊断报告: 依赖缺失</h2><table><tr><th>缺失的模组</th><th>ID</th><th>被以下已安装模组需要</th></tr>"
             for mid, report in missing_report.items():
-                req_by_html = "<ul>" + "".join([f"<li>{folder} ({notes or '无备注'}) {''.join([f'<span class=\"tag tag-{t}\">{t}</span>' for t in tags])}</li>" for folder, notes, tags in report["required_by_installed"]]) + "</ul>"
+                req_by_html = "<ul>" + "".join([f"<li>{folder} ({notes or '无备注'}) {''.join([f"<span class='tag tag-{t}'>{t}</span>" for t in tags])}</li>" for folder, notes, tags in report["required_by_installed"]]) + "</ul>"
                 html += f"<tr class='missing'><td>{create_mod_link(mid, report['name'])}</td><td>{mid}</td><td>{req_by_html}</td></tr>"
             html += "</table>"
         if problems := data.get("load_order_problems"):
